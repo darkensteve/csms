@@ -30,7 +30,6 @@ if (isset($_POST['login'])) {
         alert('You have successfully logged in!');
         window.location.href='dashboard.php';
         </script>";
-        exit(); // Ensure no further code is executed
     } else {
         $error = "Invalid username or password";
     }
@@ -53,6 +52,14 @@ if (isset($_POST['login'])) {
             margin-top: 10px;
         }
     </style>
+    <script>
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('message') && urlParams.get('message') === 'logout') {
+                alert('Successfully Logged Out');
+            }
+        };
+    </script>
 </head>
 <body>
     <div class="login-container">
@@ -74,7 +81,7 @@ if (isset($_POST['login'])) {
             </div>
 
             <?php if ($error): ?>
-                <p class="error-message"><?php echo $error; $error = ''; ?></p> <!-- Clear error after displaying -->
+                <p class="error-message"><?php echo $error; ?></p>
             <?php endif; ?>
 
             <button type="submit" name="login" class="login-btn">Login</button>
