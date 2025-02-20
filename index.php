@@ -56,7 +56,7 @@ if (isset($_POST['login'])) {
         window.onload = function() {
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.has('message') && urlParams.get('message') === 'logout') {
-                alert('Successfully Logged Out');
+                alert('Successfully Logged Out!');
             }
         };
     </script>

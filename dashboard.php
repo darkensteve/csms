@@ -56,6 +56,13 @@
             padding: 20px;
             border-radius: 5px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px; /* Add space between rows */
+            margin-right: 20px; /* Add space between columns */
+        }
+
+        .dashboard-section img {
+            max-width: 100px;
+            margin-bottom: 10px;
         }
         /* Right side (notification and logout) */
         .nav-right {
@@ -107,15 +114,49 @@
             </nav>
         </header>
 
-        <!-- Main Content Area -->
-        <main class="dashboard-main">
-            <section class="dashboard-section">
-                <h2>Section Title</h2>
-                <p>Content goes here...</p>
-            </section>
-            <!-- Add more sections as needed -->
-        </main>
+        <!-- Dashboard Main Content -->
+        <div class="dashboard-main container">
+            <div class="row">
+                <!-- Student Information Card -->
+                <div class="dashboard-section card col-md-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Student Information</h5>
+                        <img src="student_photo.jpg" alt="Student Photo" class="img-fluid">
+                        <p class="card-text">Name: John Doe</p>
+                        <p class="card-text">Course: Computer Science</p>
+                        <p class="card-text">Year: 3rd Year</p>
+                        <p class="card-text">Email: john.doe@example.com</p>
+                        <p class="card-text">Address: 123 Main St, City, Country</p>
+                    </div>
+                </div>
+
+                <!-- Announcement Section -->
+                <div class="dashboard-section card col-md-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Announcement</h5>
+                        <p class="card-text">2025-Feb-03: Announcement 1 from CCS Admin</p>
+                        <p class="card-text">2024-May-08: Announcement 2 from CCS Admin</p>
+                    </div>
+                </div>
+
+                <!-- Rules and Regulation Section -->
+                <div class="dashboard-section card col-md-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Rules and Regulation</h5>
+                        <p class="card-text"><strong>University of COLLEGE OF INFORMATION & LABORATORY RULES AND REGULATION</strong></p>
+                        <ul>
+                            <li>No eating or drinking in the lab.</li>
+                            <li>Maintain silence at all times.</li>
+                            <li>Handle equipment with care.</li>
+                            <li>Report any malfunctions to the lab supervisor.</li>
+                            <li>Adhere to the dress code.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
+
     <!-- Bootstrap JS and dependencies -->
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.4/dist/umd/popper.min.js"></script>
