@@ -51,6 +51,11 @@ ALTER TABLE `users`
   ADD UNIQUE KEY `IDNO` (`IDNO`),
   ADD UNIQUE KEY `USERNAME` (`USERNAME`);
 
+ALTER TABLE `users`
+ADD `EMAIL` varchar(255) NOT NULL,
+ADD `ADDRESS` varchar(255) NOT NULL,
+ADD `PROFILE_PICTURE` varchar(255) NOT NULL DEFAULT 'profile.jpg';
+
 --
 -- AUTO_INCREMENT for dumped tables
 --
