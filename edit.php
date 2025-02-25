@@ -100,25 +100,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Profile</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <style>
         body {
             background-color: #f8f9fa;
             font-family: 'Arial', sans-serif;
-            overflow: hidden; /* Prevent scrolling */
         }
         .edit-profile-container {
-            margin-top: 50px;
+            margin-top: 100px; /* Adjusted to match dashboard padding */
             max-width: 800px;
             margin-left: auto;
             margin-right: auto;
-            overflow: hidden; /* Prevent scrolling */
         }
         .edit-profile-form {
             background-color: white;
             padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            border-radius: 5px; /* Match dashboard border radius */
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Match dashboard shadow */
         }
         .form-group label {
             font-weight: bold;
@@ -140,20 +138,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         .btn-save:hover {
             background-color: #154c79;
-        }
-        .edit-profile-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .edit-profile-header h2 {
-            font-size: 2.5rem; /* Increased font size */
-            color: white; /* Changed font color to white */
-            font-weight: bold;
-            background-color: #1e4a82; /* Added background color */
-            padding: 15px; /* Increased padding */
-            border-radius: 10px;
-            display: inline-block;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Added shadow for a professional look */
         }
         .profile-picture {
             display: block;
@@ -184,8 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             border-radius: 5px;
             font-weight: bold;
         }
-
-        label.custom-file-upload{
+        label.custom-file-upload {
             color: white;
         }
         /* Header and Navigation */
@@ -237,7 +220,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             margin-bottom: 20px; /* Add space between rows */
             margin-right: 20px; /* Add space between columns */
         }
-
         .dashboard-section img {
             max-width: 150px; /* Increase size for better visibility */
             margin-bottom: 10px;
@@ -316,7 +298,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <!-- Navigation Bar -->
     <header class="dashboard-header">
         <nav class="dashboard-nav">
-            <ul>
+            <ul class="d-flex align-items-center">
                 <li class="dashboard-link"><a href="dashboard.php">Dashboard</a></li>
                 <li><a href="dashboard.php">Home</a></li>
                 <li><a href="edit.php">Edit Profile</a></li>
@@ -329,59 +311,85 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </nav>
     </header>
 
-    <div class="container edit-profile-container">
-        <form class="edit-profile-form" id="editProfileForm" method="POST" enctype="multipart/form-data">
-            <div class="form-group text-center">
-                <img src="<?php echo $profilePicture; ?>" alt="Profile Picture" class="profile-picture" id="profilePicturePreview" onerror="this.onerror=null;this.src='placeholder.jpg';">
-                <label for="profilePicture" class="custom-file-upload">Edit Picture</label>
-                <input type="file" class="form-control-file" id="profilePicture" name="profilePicture" onchange="previewProfilePicture(event)">
-            </div>
-            <div class="form-row">
-                <div class="form-group col-md-6">
-                    <label for="idNo">ID NO</label>
-                    <input type="text" class="form-control" id="idNo" name="idNo" placeholder="Enter your ID number" value="<?php echo $idNo; ?>">
+    <div class="container-fluid dashboard-main">
+        <div class="row">
+            <div class="col-md-12">
+                <div class="dashboard-section card">
+                    <form class="edit-profile-form" id="editProfileForm" method="POST" enctype="multipart/form-data">
+                        <div class="form-group text-center">
+                            <img src="<?php echo $profilePicture; ?>" alt="Profile Picture" class="profile-picture" id="profilePicturePreview" onerror="this.onerror=null;this.src='placeholder.jpg';">
+                            <label for="profilePicture" class="custom-file-upload">Edit Picture</label>
+                            <input type="file" class="form-control-file" id="profilePicture" name="profilePicture" onchange="previewProfilePicture(event)">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label for="idNo">ID NO</label>
+                                <input type="text" class="form-control" id="idNo" name="idNo" placeholder="Enter your ID number" value="<?php echo $idNo; ?>">
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label for="lastName">Last Name</label>
+                                <input type="text" class="form-control" id="lastName" name="lastName" placeholder="Enter your last name" value="<?php echo $lastName; ?>">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label for="firstName">First Name</label>
+                                <input type="text" class="form-control" id="firstName" name="firstName" placeholder="Enter your first name" value="<?php echo $firstName; ?>">
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label for="middleName">Middle Name</label>
+                                <input type="text" class="form-control" id="middleName" name="middleName" placeholder="Enter your middle name" value="<?php echo $middleName; ?>">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label for="course">Course</label>
+                                <select id="course" name="course" class="form-control" required>
+                                    <option value="" disabled>Select Course</option>
+                                    <option value="BSCS" <?php if ($course == 'BSCS') echo 'selected'; ?>>BSCS</option>
+                                    <option value="BSIT" <?php if ($course == 'BSIT') echo 'selected'; ?>>BSIT</option>
+                                    <option value="ACT" <?php if ($course == 'ACT') echo 'selected'; ?>>ACT</option>
+                                    <option value="COE" <?php if ($course == 'COE') echo 'selected'; ?>>COE</option>
+                                    <option value="CPE" <?php if ($course == 'CPE') echo 'selected'; ?>>CPE</option>
+                                    <option value="BSIS" <?php if ($course == 'BSIS') echo 'selected'; ?>>BSIS</option>
+                                    <option value="BSA" <?php if ($course == 'BSA') echo 'selected'; ?>>BSA</option>
+                                    <option value="BSBA" <?php if ($course == 'BSBA') echo 'selected'; ?>>BSBA</option>
+                                    <option value="BSHRM" <?php if ($course == 'BSHRM') echo 'selected'; ?>>BSHRM</option>
+                                    <option value="BSHM" <?php if ($course == 'BSHM') echo 'selected'; ?>>BSHM</option>
+                                    <option value="BSN" <?php if ($course == 'BSN') echo 'selected'; ?>>BSN</option>
+                                    <option value="BSMT" <?php if ($course == 'BSMT') echo 'selected'; ?>>BSMT</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label for="year">Year Level</label>
+                                <select id="year" name="year" class="form-control" required>
+                                    <option value="" disabled>Year Level</option>
+                                    <option value="1st Year" <?php if ($year == '1st Year') echo 'selected'; ?>>1st Year</option>
+                                    <option value="2nd Year" <?php if ($year == '2nd Year') echo 'selected'; ?>>2nd Year</option>
+                                    <option value="3rd Year" <?php if ($year == '3rd Year') echo 'selected'; ?>>3rd Year</option>
+                                    <option value="4th Year" <?php if ($year == '4th Year') echo 'selected'; ?>>4th Year</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label for="username">Username</label>
+                                <input type="text" class="form-control" id="username" name="username" placeholder="Enter your username" value="<?php echo $username; ?>">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" placeholder="Enter your email" value="<?php echo $email; ?>">
+                        </div>
+                        <div class="form-group">
+                            <label for="address">Address</label>
+                            <input type="text" class="form-control" id="address" name="address" placeholder="Enter your address" value="<?php echo $address; ?>">
+                        </div>
+                        <button type="submit" class="btn btn-save">Save Changes</button>
+                    </form>
                 </div>
-                <div class="form-group col-md-6">
-                    <label for="lastName">Last Name</label>
-                    <input type="text" class="form-control" id="lastName" name="lastName" placeholder="Enter your last name" value="<?php echo $lastName; ?>">
-                </div>
             </div>
-            <div class="form-row">
-                <div class="form-group col-md-6">
-                    <label for="firstName">First Name</label>
-                    <input type="text" class="form-control" id="firstName" name="firstName" placeholder="Enter your first name" value="<?php echo $firstName; ?>">
-                </div>
-                <div class="form-group col-md-6">
-                    <label for="middleName">Middle Name</label>
-                    <input type="text" class="form-control" id="middleName" name="middleName" placeholder="Enter your middle name" value="<?php echo $middleName; ?>">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group col-md-6">
-                    <label for="course">Course</label>
-                    <input type="text" class="form-control" id="course" name="course" placeholder="Enter your course" value="<?php echo $course; ?>">
-                </div>
-                <div class="form-group col-md-6">
-                    <label for="year">Year Level</label>
-                    <input type="text" class="form-control" id="year" name="year" placeholder="Enter your year level" value="<?php echo $year; ?>">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group col-md-6">
-                    <label for="username">Username</label>
-                    <input type="text" class="form-control" id="username" name="username" placeholder="Enter your username" value="<?php echo $username; ?>">
-                </div>
-            </div>
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" class="form-control" id="email" name="email" placeholder="Enter your email" value="<?php echo $email; ?>">
-            </div>
-            <div class="form-group">
-                <label for="address">Address</label>
-                <input type="text" class="form-control" id="address" name="address" placeholder="Enter your address" value="<?php echo $address; ?>">
-            </div>
-            <button type="submit" class="btn btn-save">Save Changes</button>
-        </form>
+        </div>
     </div>
 
     <!-- Bootstrap JS and dependencies -->
