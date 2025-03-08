@@ -1,242 +1,447 @@
+<?php
+// Start the session at the beginning
+session_start();
+
+// Check if user is logged in
+if (!isset($_SESSION['id'])) {
+    // Redirect to login page if not logged in
+    header("Location: index.php");
+    exit();
+}
+
+// Get the logged-in user's ID
+$loggedInUserId = $_SESSION['id'];
+
+// Check for login_success session flag
+if (isset($_SESSION['login_success']) && $_SESSION['login_success'] === true) {
+    $showLoginSuccess = true;
+    // Clear the flag so it only shows once
+    $_SESSION['login_success'] = false;
+} else {
+    $showLoginSuccess = false;
+}
+
+// Database connection
+$servername = "localhost";
+$username = "root";
+$password = "";
+$dbname = "csms";
+
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// Fetch announcements from database
+$announcements = [];
+$query = "SELECT * FROM announcements ORDER BY created_at DESC LIMIT 5";
+$result = $conn->query($query);
+
+if ($result && $result->num_rows > 0) {
+    while ($row = $result->fetch_assoc()) {
+        $announcements[] = $row;
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
     <style>
         body {
-            background-color: #f8f9fa;
-            overflow: hidden; /* Prevent scrolling */
+            background-color: #f8fafc;
         }
-        /* Header and Navigation */
-        .dashboard-header {
-            background-color: #1e4a82; /* Updated to match blue color */
-            color: white;
-            padding: 10px 20px;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            z-index: 1000;
-        }
-        .dashboard-header nav ul {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            justify-content: flex-start; /* Align items to the left */
-        }
-        .dashboard-header nav ul li.dashboard-link {
-            margin-right: auto; /* Separate Dashboard from other items */
-        }
-        .dashboard-header nav ul li {
-            margin-left: 10px; /* Reduce spacing between links */
-        }
-        .dashboard-header nav ul li a {
-            color: white;
-            text-decoration: none;
-            font-weight: bold;
-            padding: 8px 15px;
-        }
-        .dashboard-header nav ul li a:hover {
-            background-color: #154c79;
-            border-radius: 5px;
-        }
-        .btn-logout {
-            background-color: #ff4b4b;
-            border: none;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .btn-logout:hover {
-            background-color: #d73a3a;
-        }
-        /* Main Dashboard Area */
-        .dashboard-main {
-            padding: 100px 20px 20px; /* Ensure content isn't hidden under the fixed header */
-            height: calc(100vh - 100px); /* Adjust height to fit viewport */
+        .card {
+            height: 500px;
             display: flex;
             flex-direction: column;
         }
-        .dashboard-section {
-            background-color: white;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
+        .card-content {
             flex: 1;
+            overflow-y: auto;
         }
-        .student-info-section img,
-        .dashboard-section img {
-            max-width: 150px;
-            margin-bottom: 10px;
-            border-radius: 50%;
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            border: 3px solid #1e4a82;
+        /* Add specific style for student info card to prevent scrolling */
+        .student-info-card .card-content {
+            overflow-y: visible;
+            flex: 0 1 auto;
         }
-        .student-info-section .card-title,
-        .card-title {
-            text-align: center;
-            color: #1e4a82;
-        }
-        .student-info-section .card-text,
-        .card-text {
-            font-size: 1rem;
-            color: #333;
-            margin-bottom: 15px;
-            line-height: 1.5;
-        }
-        .student-info-section .card-text i,
-        .card-text i {
-            margin-right: 10px;
-            color: #1e4a82;
-        }
-        .announcement-section .card-body,
-        .rules-section .card-body {
-            max-height: 300px; /* Set max height */
-            overflow-y: auto; /* Make scrollable */
-        }
-        .rules-section ul {
-            padding-left: 20px;
-        }
-        .rules-section ul li {
-            margin-bottom: 10px;
-        }
-        .rules-section h6 {
-            font-weight: bold;
-            margin-top: 20px;
+        .student-info-card {
+            height: auto;
+            min-height: 500px;
         }
     </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        :root {
+            --success-color: #43a047;
+            --error-color: #e53935;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            max-width: 350px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .notification.success {
+            background-color: var(--success-color);
+        }
+        
+        .notification.error {
+            background-color: var(--error-color);
+        }
+        
+        .notification.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .notification i {
+            margin-right: 10px;
+            font-size: 18px;
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check for message parameter in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('message')) {
+                const message = urlParams.get('message');
+                if (message === 'login') {
+                    showNotification('Successfully Logged In!', 'success');
+                    
+                    // Remove the message parameter from URL without reloading
+                    const newUrl = window.location.pathname;
+                    history.pushState({}, document.title, newUrl);
+                }
+            }
+            
+            // Check for PHP session login_success flag
+            const showLoginSuccess = <?php echo $showLoginSuccess ? 'true' : 'false'; ?>;
+            if (showLoginSuccess) {
+                showNotification('Successfully Logged In!', 'success');
+            }
+        });
+        
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.add('show');
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                    setTimeout(() => {
+                        notification.remove();
+                    }, 300);
+                }, 3000);
+            }, 100);
+        }
+    </script>
 </head>
-<body>
-    <div class="container-fluid">
-        <!-- Navigation Bar -->
-        <header class="dashboard-header">
-            <nav class="dashboard-nav">
-                <ul class="d-flex align-items-center">
-                    <!-- Separate the Dashboard link -->
-                    <li class="dashboard-link"><a href="dashboard.php">Dashboard</a></li>
-                    <li><a class="dropdown-toggle" href="#" id="notificationDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Notification</a>
-                        <div class="dropdown-menu" aria-labelledby="notificationDropdown">
-                            <a class="dropdown-item" href="#">Action 1</a>
-                            <a class="dropdown-item" href="#">Action 2</a>
-                            <a class="dropdown-item" href="#">Action 3</a>
+<body class="font-sans h-screen flex flex-col overflow-hidden">
+    <!-- Navigation Bar -->
+    <header class="bg-primary-700 text-white shadow-lg">
+        <div class="container mx-auto">
+            <nav class="flex items-center justify-between px-4 py-3">
+                <div class="flex items-center space-x-4">
+                    <a href="dashboard.php" class="text-xl font-bold">SitIn Dashboard</a>
+                </div>
+                
+                <div class="flex items-center space-x-3">
+                    <div class="hidden md:flex items-center space-x-2 mr-4">
+                        <a href="dashboard.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Home</a>
+                        <div class="relative group">
+                            <button class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                                Notification <i class="fas fa-chevron-down ml-1 text-xs"></i>
+                            </button>
+                            <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 hidden group-hover:block">
+                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Action 1</a>
+                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Action 2</a>
+                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Action 3</a>
+                            </div>
                         </div>
-                    </li>
-                    <li><a href="dashboard.php">Home</a></li>
-                    <li><a href="edit.php">Edit Profile</a></li>
-                    <li><a href="history.php">History</a></li>
-                    <li><a href="reservation.php">Reservation</a></li>
-                    <li class="nav-right">
-                        <button class="btn-logout" onclick="window.location.href='logout.php'">Log out</button>
-                    </li>
-                </ul>
+                        <a href="edit.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Edit Profile</a>
+                        <a href="history.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">History</a>
+                        <a href="reservation.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Reservation</a>
+                    </div>
+                    
+                    <button id="mobile-menu-button" class="md:hidden text-white focus:outline-none">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                    <a href="logout.php" class="bg-red-500 hover:bg-red-600 text-white font-medium px-4 py-2 rounded transition">
+                        Log out
+                    </a>
+                </div>
             </nav>
-        </header>
+        </div>
+    </header>
+    
+    <!-- Mobile Navigation Menu (hidden by default) -->
+    <div id="mobile-menu" class="md:hidden bg-primary-800 hidden">
+        <a href="dashboard.php" class="block px-4 py-2 text-white hover:bg-primary-900">Home</a>
+        <button class="mobile-dropdown-button w-full text-left px-4 py-2 text-white hover:bg-primary-900 flex justify-between items-center">
+            Notification <i class="fas fa-chevron-down ml-1"></i>
+        </button>
+        <div class="mobile-dropdown-content hidden bg-primary-900 px-4 py-2">
+            <a href="#" class="block py-1 text-white hover:text-gray-300">Action 1</a>
+            <a href="#" class="block py-1 text-white hover:text-gray-300">Action 2</a>
+            <a href="#" class="block py-1 text-white hover:text-gray-300">Action 3</a>
+        </div>
+        <a href="edit.php" class="block px-4 py-2 text-white hover:bg-primary-900">Edit Profile</a>
+        <a href="history.php" class="block px-4 py-2 text-white hover:bg-primary-900">History</a>
+        <a href="reservation.php" class="block px-4 py-2 text-white hover:bg-primary-900">Reservation</a>
+    </div>
 
-        <!-- Dashboard Main Content -->
-        <div class="dashboard-main container">
-            <div class="row">
+    <!-- Dashboard Main Content - Fixed height, no scroll -->
+    <div class="flex-1 flex flex-col overflow-hidden px-4 py-6 md:px-8">
+        <div class="container mx-auto flex-1 flex flex-col overflow-hidden">
+            
+            <!-- Cards section - Scrollable -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto flex-1">
                 <!-- Student Information Card -->
-                <div class="col-md-4 col-sm-6 mb-4">
-                    <div class="dashboard-section card student-info-section">
-                        <div class="card-body">
-                            <h5 class="card-title">Student Information</h5>
-                            <?php
-                            // Database connection
-                            $servername = "localhost";
-                            $username = "root";
-                            $password = "";
-                            $dbname = "csms";
+                <div class="bg-white rounded-xl shadow-sm hover:shadow-md transition card student-info-card border border-gray-100">
+                    <div class="p-6 flex flex-col h-full">
+                        <div class="border-b border-gray-100 pb-4 mb-4">
+                            <h2 class="text-xl font-bold text-primary-700">Student Information</h2>
+                        </div>
+                        <?php
+                        // Database connection
+                        $servername = "localhost";
+                        $username = "root";
+                        $password = "";
+                        $dbname = "csms";
 
-                            $conn = new mysqli($servername, $username, $password, $dbname);
+                        $conn = new mysqli($servername, $username, $password, $dbname);
 
-                            if ($conn->connect_error) {
-                                die("Connection failed: " . $conn->connect_error);
-                            }
+                        if ($conn->connect_error) {
+                            die("Connection failed: " . $conn->connect_error);
+                        }
 
-                            // Fetch user details from the database
-                            $sql = "SELECT firstName, lastName, course, yearLevel, email, address, profile_picture FROM users WHERE user_id=1";
-                            $result = $conn->query($sql);
+                        // Fetch user details from the database using the logged-in user's ID
+                        $sql = "SELECT idNo, firstName, lastName, middleName, course, yearLevel, email, address, profile_picture, 
+                                IFNULL(remaining_sessions, 30) AS remaining_sessions FROM users WHERE user_id = ?";
+                        $stmt = $conn->prepare($sql);
+                        $stmt->bind_param("i", $loggedInUserId);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
 
-                            if ($result->num_rows > 0) {
-                                $row = $result->fetch_assoc();
-                                $firstName = $row['firstName'];
-                                $lastName = $row['lastName'];
-                                $course = $row['course'];
-                                $year = $row['yearLevel'];
-                                $email = $row['email'];
-                                $address = $row['address'];
-                                $profilePicture = $row['profile_picture'];
-                            } else {
-                                echo "No user found.";
-                            }
+                        if ($result->num_rows > 0) {
+                            $row = $result->fetch_assoc();
+                            $idNo = $row['idNo'] ?? '';
+                            $firstName = $row['firstName'] ?? '';
+                            $lastName = $row['lastName'] ?? '';
+                            $middleName = $row['middleName'] ?? '';
+                            $course = $row['course'] ?? '';
+                            $year = $row['yearLevel'] ?? '';
+                            $email = $row['email'] ?? '';
+                            $address = $row['address'] ?? '';
+                            $profilePicture = $row['profile_picture'] ?? 'profile.jpg';
+                            $remainingSessions = $row['remaining_sessions'] ?? 30;
+                        } else {
+                            echo "No user data found.";
+                            $firstName = "User";
+                            $lastName = "Not Found";
+                            $course = "N/A";
+                            $year = "N/A";
+                            $email = "N/A";
+                            $address = "N/A";
+                            $profilePicture = "profile.jpg";
+                            $remainingSessions = 30;
+                        }
 
-                            $conn->close();
-                            ?>
-                            <img src="<?php echo $profilePicture; ?>" alt="Student Photo" class="img-fluid" onerror="this.onerror=null;this.src='placeholder.jpg';">
-                            <hr>
-                            <p class="card-text"><i class="fas fa-user"></i> Name: <?php echo $firstName . ' ' . $lastName; ?></p>
-                            <p class="card-text"><i class="fas fa-book"></i> Course: <?php echo $course; ?></p>
-                            <p class="card-text"><i class="fas fa-graduation-cap"></i> Year: <?php echo $year; ?></p>
-                            <p class="card-text"><i class="fas fa-envelope"></i> Email: <?php echo $email; ?></p>
-                            <p class="card-text"><i class="fas fa-map-marker-alt"></i> Address: <?php echo $address; ?></p>
+                        $stmt->close();
+                        $conn->close();
+                        ?>
+                        
+                        <div class="flex flex-col items-center mb-3">
+                            <div class="w-28 h-28 mb-2 rounded-full border-4 border-primary-100 overflow-hidden">
+                                <img src="<?php echo $profilePicture; ?>" alt="Student Photo" class="w-full h-full object-cover" 
+                                     onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name=<?php echo urlencode($firstName . ' ' . $lastName); ?>&background=0369a1&color=fff&size=128';">
+                            </div>
+                            <h3 class="text-lg font-semibold text-gray-800"><?php echo $firstName . ' ' . $lastName; ?></h3>
+                            <?php if (!empty($idNo)): ?>
+                            <p class="text-sm text-gray-500"><?php echo $idNo; ?></p>
+                            <?php endif; ?>
+                        </div>
+                        
+                        <div class="card-content">
+                            <div class="space-y-2">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-book text-primary-600"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm text-gray-500">Course</p>
+                                        <p class="font-medium"><?php echo $course; ?></p>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-graduation-cap text-primary-600"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm text-gray-500">Year Level</p>
+                                        <p class="font-medium"><?php echo $year; ?></p>
+                                    </div>
+                                </div>
+                                
+                                <!-- New Remaining Sessions -->
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-ticket-alt text-green-600"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm text-gray-500">Remaining Sessions</p>
+                                        <p class="font-medium"><?php echo $remainingSessions; ?></p>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-envelope text-primary-600"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm text-gray-500">Email</p>
+                                        <p class="font-medium"><?php echo $email; ?></p>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-map-marker-alt text-primary-600"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm text-gray-500">Address</p>
+                                        <p class="font-medium"><?php echo $address; ?></p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Announcement Section -->
-                <div class="col-md-4 col-sm-6 mb-4">
-                    <div class="dashboard-section card announcement-section">
-                        <div class="card-body overflow-auto">
-                            <h5 class="card-title">Announcement</h5>
-                            <p class="card-text">2025-Feb-03: Announcement 1 from CCS Admin</p>
-                            <hr>
-                            <p>Reminder to all students: The deadline for submission of requirements for the upcoming internship is on February 28, 2025. Please coordinate with your respective departments.</p>
-                            <p class="card-text">2024-May-08: Announcement 2 from CCS Admin</p>
-                            <hr>
-                            <p>The College of Computer Studies will be holding a seminar on 'AI and the Future of Technology' on March 10, 2025. All students are encouraged to attend. Registration is free!</p>
+                <div class="bg-white rounded-xl shadow-sm hover:shadow-md transition card border border-gray-100">
+                    <div class="p-6 flex flex-col h-full">
+                        <div class="border-b border-gray-100 pb-4 mb-4">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                                    <i class="fas fa-bullhorn text-blue-600"></i>
+                                </div>
+                                <h2 class="text-xl font-bold text-gray-800 ml-3">Announcements</h2>
+                            </div>
+                        </div>
+                        
+                        <div class="card-content space-y-4 pr-2">
+                            <?php if (count($announcements) > 0): ?>
+                                <?php foreach ($announcements as $announcement): ?>
+                                <div class="bg-blue-50 rounded-lg p-4">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <h3 class="font-semibold text-gray-800">
+                                            <?php echo htmlspecialchars($announcement['admin_username'] ?? 'System Admin'); ?>
+                                        </h3>
+                                        <span class="text-xs text-gray-500">
+                                            <?php echo date('Y-M-d', strtotime($announcement['created_at'])); ?>
+                                        </span>
+                                    </div>
+                                    <p class="text-gray-700 mb-2 font-medium"><?php echo htmlspecialchars($announcement['title']); ?></p>
+                                    <p class="text-gray-600 text-sm"><?php echo nl2br(htmlspecialchars($announcement['content'])); ?></p>
+                                </div>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <div class="bg-blue-50 rounded-lg p-4">
+                                    <p class="text-gray-600 text-center">No announcements available at this time.</p>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
 
-                <!-- Rules and Regulation Section -->
-                <div class="col-md-4 col-sm-6 mb-4">
-                    <div class="dashboard-section card rules-section">
-                        <div class="card-body overflow-auto">
-                            <h5 class="card-title">Rules and Regulations</h5>
-                            <ul>
+                <!-- Rules and Regulations Section -->
+                <div class="bg-white rounded-xl shadow-sm hover:shadow-md transition card border border-gray-100">
+                    <div class="p-6 flex flex-col h-full">
+                        <div class="border-b border-gray-100 pb-4 mb-4">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center flex-shrink-0">
+                                    <i class="fas fa-gavel text-green-600"></i>
+                                </div>
+                                <h2 class="text-xl font-bold text-gray-800 ml-3">Rules and Regulations</h2>
+                            </div>
+                        </div>
+                        
+                        <div class="card-content pr-2 text-gray-700 text-sm">
+                            <ol class="list-decimal space-y-2 ml-5">
                                 <li>Maintain silence, proper decorum, and discipline inside the laboratory. Mobile phones, walkmans and other personal pieces of equipment must be switched off.</li>
                                 <li>Games are not allowed inside the lab. This includes computer-related games, card games and other games that may disturb the operation of the lab.</li>
                                 <li>Surfing the Internet is allowed only with the permission of the instructor. Downloading and installing of software are strictly prohibited.</li>
                                 <li>Getting access to other websites not related to the course (especially pornographic and illicit sites) is strictly prohibited.</li>
                                 <li>Deleting computer files and changing the set-up of the computer is a major offense.</li>
                                 <li>Observe computer time usage carefully. A fifteen-minute allowance is given for each use. Otherwise, the unit will be given to those who wish to "sit-in".</li>
-                                <li>Observe proper decorum while inside the laboratory.</li>
-                                <ul>
-                                    <li>Do not get inside the lab unless the instructor is present.</li>
-                                    <li>All bags, knapsacks, and the likes must be deposited at the counter.</li>
-                                    <li>Follow the seating arrangement of your instructor.</li>
-                                    <li>At the end of class, all software programs must be closed.</li>
-                                    <li>Return all chairs to their proper places after using.</li>
-                                </ul>
+                                <li>Observe proper decorum while inside the laboratory.
+                                    <ul class="list-disc ml-5 mt-1 space-y-1">
+                                        <li>Do not get inside the lab unless the instructor is present.</li>
+                                        <li>All bags, knapsacks, and the likes must be deposited at the counter.</li>
+                                        <li>Follow the seating arrangement of your instructor.</li>
+                                        <li>At the end of class, all software programs must be closed.</li>
+                                        <li>Return all chairs to their proper places after using.</li>
+                                    </ul>
+                                </li>
                                 <li>Chewing gum, eating, drinking, smoking, and other forms of vandalism are prohibited inside the lab.</li>
                                 <li>Anyone causing a continual disturbance will be asked to leave the lab. Acts or gestures offensive to the members of the community, including public display of physical intimacy, are not tolerated.</li>
                                 <li>Persons exhibiting hostile or threatening behavior such as yelling, swearing, or disregarding requests made by lab personnel will be asked to leave the lab.</li>
                                 <li>For serious offense, the lab personnel may call the Civil Security Office (CSU) for assistance.</li>
                                 <li>Any technical problem or difficulty must be addressed to the laboratory supervisor, student assistant or instructor immediately.</li>
-                            </ul>
-                            <h6>DISCIPLINARY ACTION</h6>
-                            <ul>
+                            </ol>
+                            
+                            <h3 class="font-bold text-green-700 mt-4 mb-2">DISCIPLINARY ACTION</h3>
+                            <ul class="list-disc ml-5 space-y-2">
                                 <li>First Offense - The Head or the Dean or OIC recommends to the Guidance Center for a suspension from classes for each offender.</li>
                                 <li>Second and Subsequent Offenses - A recommendation for a heavier sanction will be endorsed to the Guidance Center.</li>
                             </ul>
@@ -247,8 +452,24 @@
         </div>
     </div>
     
-    <!-- JavaScript for Bootstrap and additional scripts -->
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <footer class="bg-white border-t border-gray-200 py-3">
+        <div class="container mx-auto px-4 text-center text-gray-500 text-sm">
+            &copy; 2024 SitIn System. All rights reserved.
+        </div>
+    </footer>
+    
+    <script>
+        // Toggle mobile menu
+        document.getElementById('mobile-menu-button').addEventListener('click', function() {
+            document.getElementById('mobile-menu').classList.toggle('hidden');
+        });
+        
+        // Toggle mobile dropdown menus
+        document.querySelectorAll('.mobile-dropdown-button').forEach(button => {
+            button.addEventListener('click', function() {
+                this.nextElementSibling.classList.toggle('hidden');
+            });
+        });
+    </script>
 </body>
 </html>

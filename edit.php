@@ -1,4 +1,17 @@
 <?php
+// Start session at the beginning
+session_start();
+
+// Check if user is logged in
+if (!isset($_SESSION['id'])) {
+    // Redirect to login page if not logged in
+    header("Location: index.php");
+    exit();
+}
+
+// Get the logged-in user's ID
+$loggedInUserId = $_SESSION['id'];
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Database connection
     $servername = "localhost";
@@ -12,86 +25,153 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         die("Connection failed: " . $conn->connect_error);
     }
 
-    // Get form data
-    $idNo = $_POST['idNo'];
-    $lastName = $_POST['lastName'];
-    $firstName = $_POST['firstName'];
-    $middleName = $_POST['middleName'];
-    $course = $_POST['course'];
-    $year = $_POST['year'];
-    $username = $_POST['username'];
-    $email = $_POST['email'];
-    $address = $_POST['address'];
-    $profilePicture = $_FILES['profilePicture']['name'];
+    // Get form data - use null coalescing operator to avoid undefined array key warnings
+    $idNo = $_POST['idNo'] ?? '';
+    $lastName = $_POST['lastName'] ?? '';
+    $firstName = $_POST['firstName'] ?? '';
+    $middleName = $_POST['middleName'] ?? '';
+    $course = $_POST['course'] ?? '';
+    $year = $_POST['yearLevel'] ?? ''; // Changed from 'year' to 'yearLevel' to match your form field
+    $username = $_POST['username'] ?? '';
+    $email = $_POST['email'] ?? '';
+    $address = $_POST['address'] ?? '';
 
-    // Check if username, email, or ID number already exists
-    $checkSql = "SELECT * FROM users WHERE (username='$username' OR email='$email' OR idNo='$idNo') AND user_id != 1"; // Adjust user_id as necessary
-    $checkResult = $conn->query($checkSql);
-
-    if ($checkResult->num_rows > 0) {
-        echo "<script>alert('Username, Email, or ID number already taken. Please choose another.');</script>";
-        echo "<script>setTimeout(function() { window.location.href = 'edit.php'; }, 2000);</script>";
-    } else {
+    // Check if profile picture was uploaded
+    if (isset($_FILES['profilePicture']) && $_FILES['profilePicture']['name'] != '') {
+        $profilePicture = $_FILES['profilePicture']['name'];
+        
         // Handle file upload
-        if ($profilePicture) {
-            $target_dir = "uploads/";
-            $target_file = $target_dir . basename($profilePicture);
-            move_uploaded_file($_FILES['profilePicture']['tmp_name'], $target_file);
+        $target_dir = "uploads/";
+        if (!is_dir($target_dir)) {
+            mkdir($target_dir, 0777, true);
+        }
+        $target_file = $target_dir . basename($profilePicture);
+        move_uploaded_file($_FILES['profilePicture']['tmp_name'], $target_file);
+    } else {
+        // Fetch existing profile picture if no new one is uploaded
+        $sql = "SELECT profile_picture FROM users WHERE user_id=?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("i", $loggedInUserId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result->num_rows > 0) {
+            $row = $result->fetch_assoc();
+            $target_file = $row['profile_picture'];
         } else {
             $target_file = "profile.jpg"; // Default profile picture
         }
+        $stmt->close();
+    }
 
-        // Update user details in the database
-        $sql = "UPDATE users SET idNo='$idNo', lastName='$lastName', firstName='$firstName', middleName='$middleName', course='$course', yearLevel='$year', username='$username', email='$email', address='$address', profile_picture='$target_file' WHERE user_id=1"; // Adjust user_id as necessary
+    // Check which fields are available in the form and build the update SQL accordingly
+    $updateFields = [];
+    
+    if ($lastName !== '') $updateFields[] = "lastName=?";
+    if ($firstName !== '') $updateFields[] = "firstName=?";
+    if ($idNo !== '') $updateFields[] = "idNo=?";
+    if ($middleName !== '') $updateFields[] = "middleName=?";
+    if ($course !== '') $updateFields[] = "course=?";
+    if ($year !== '') $updateFields[] = "yearLevel=?";
+    if ($username !== '') $updateFields[] = "username=?";
+    if ($email !== '') $updateFields[] = "email=?";
+    if ($address !== '') $updateFields[] = "address=?";
+    $updateFields[] = "profile_picture=?";
 
-        if ($conn->query($sql) === TRUE) {
-            echo "<script>alert('Profile updated successfully!');</script>";
-            echo "<script>setTimeout(function() { window.location.href = 'dashboard.php'; }, 2000);</script>";
-        } else {
-            echo "Error updating profile: " . $conn->error;
+    if (!empty($updateFields)) {
+        // Prepare update statement with placeholders
+        $sql = "UPDATE users SET " . implode(", ", $updateFields) . " WHERE user_id=?";
+        
+        // Create parameter binding string and parameter array
+        $bindTypes = str_repeat("s", count($updateFields)) . "i"; // all string fields + integer for user_id
+        $bindParams = [];
+        
+        // Add parameters in the same order as placeholders
+        if ($lastName !== '') $bindParams[] = $lastName;
+        if ($firstName !== '') $bindParams[] = $firstName;
+        if ($idNo !== '') $bindParams[] = $idNo;
+        if ($middleName !== '') $bindParams[] = $middleName;
+        if ($course !== '') $bindParams[] = $course;
+        if ($year !== '') $bindParams[] = $year;
+        if ($username !== '') $bindParams[] = $username;
+        if ($email !== '') $bindParams[] = $email;
+        if ($address !== '') $bindParams[] = $address;
+        $bindParams[] = $target_file; // profile_picture
+        $bindParams[] = $loggedInUserId; // Add user_id as last parameter
+        
+        // Prepare and execute statement
+        $stmt = $conn->prepare($sql);
+        
+        // Use call_user_func_array to bind parameters dynamically
+        $bindParamsRef = [];
+        $bindParamsRef[] = &$bindTypes;
+        foreach ($bindParams as $key => $value) {
+            $bindParamsRef[] = &$bindParams[$key];
         }
-    }
-
-    $conn->close();
-} else {
-    // Database connection
-    $servername = "localhost";
-    $username = "root";
-    $password = "";
-    $dbname = "csms";
-
-    $conn = new mysqli($servername, $username, $password, $dbname);
-
-    if ($conn->connect_error) {
-        die("Connection failed: " . $conn->connect_error);
-    }
-
-    // Initialize variables to avoid undefined variable warnings
-    $email = '';
-    $address = '';
-
-    // Fetch user details from the database
-    $sql = "SELECT idNo, lastName, firstName, middleName, course, yearLevel, username, email, address, profile_picture FROM users WHERE user_id=1"; // Adjust user_id as necessary
-    $result = $conn->query($sql);
-
-    if ($result->num_rows > 0) {
-        $row = $result->fetch_assoc();
-        $idNo = $row['idNo'];
-        $lastName = $row['lastName'];
-        $firstName = $row['firstName'];
-        $middleName = $row['middleName'];
-        $course = $row['course'];
-        $year = $row['yearLevel'];
-        $username = $row['username'];
-        $email = $row['email'];
-        $address = $row['address'];
-        $profilePicture = $row['profile_picture'];
-    } else {
-        echo "No user found.";
+        call_user_func_array([$stmt, 'bind_param'], $bindParamsRef);
+        
+        if ($stmt->execute()) {
+            echo "<div class='bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4'>
+                    Profile updated successfully!
+                  </div>";
+        } else {
+            echo "<div class='bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4'>
+                    Error updating profile: " . $stmt->error . "
+                  </div>";
+        }
+        
+        $stmt->close();
     }
 
     $conn->close();
 }
+
+// Database connection for displaying current user data
+$servername = "localhost";
+$username = "root";
+$password = "";
+$dbname = "csms";
+
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// Initialize variables with default empty values
+$idNo = '';
+$firstName = '';
+$lastName = '';
+$middleName = '';
+$course = '';
+$year = '';
+$username = '';
+$email = '';
+$address = '';
+$profilePicture = 'profile.jpg'; // Default profile image
+
+// Fetch user details from the database using prepared statement
+$sql = "SELECT idNo, lastName, firstName, middleName, course, yearLevel, username, email, address, profile_picture FROM users WHERE user_id=?";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("i", $loggedInUserId);
+$stmt->execute();
+$result = $stmt->get_result();
+
+if ($result->num_rows > 0) {
+    $row = $result->fetch_assoc();
+    $idNo = $row['idNo'] ?? '';
+    $lastName = $row['lastName'] ?? '';
+    $firstName = $row['firstName'] ?? '';
+    $middleName = $row['middleName'] ?? '';
+    $course = $row['course'] ?? '';
+    $year = $row['yearLevel'] ?? '';
+    $username = $row['username'] ?? '';
+    $email = $row['email'] ?? '';
+    $address = $row['address'] ?? '';
+    $profilePicture = $row['profile_picture'] ?? 'profile.jpg';
+}
+
+$stmt->close();
+$conn->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -99,311 +179,302 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Profile</title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <style>
-        body {
-            background-color: #f8f9fa;
-            font-family: 'Arial', sans-serif;
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
         }
-        .edit-profile-container {
-            margin-top: 100px; /* Adjusted to match dashboard padding */
-            max-width: 800px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        .edit-profile-form {
-            background-color: white;
-            padding: 30px;
-            border-radius: 5px; /* Match dashboard border radius */
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Match dashboard shadow */
-        }
-        .form-group label {
-            font-weight: bold;
-            color: #1e4a82;
-        }
-        .form-control {
-            border-radius: 5px;
-            border: 1px solid #ddd;
-        }
-        .btn-save {
-            background-color: #1e4a82;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            font-size: 1rem;
-            font-weight: bold;
-            transition: background-color 0.3s;
-        }
-        .btn-save:hover {
-            background-color: #154c79;
-        }
-        .profile-picture {
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-            margin-bottom: 20px;
-            border-radius: 50%;
-            width: 150px;
-            height: 150px;
-            object-fit: cover;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-        .form-control-file {
-            margin-top: 10px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        .form-group input[type="file"] {
-            display: none;
-        }
-        .custom-file-upload {
-            display: inline-block;
-            padding: 6px 12px;
-            cursor: pointer;
-            background-color: #1e4a82;
-            color: white;
-            border-radius: 5px;
-            font-weight: bold;
-        }
-        label.custom-file-upload {
-            color: white;
-        }
-        /* Header and Navigation */
-        .dashboard-header {
-            background-color: #1e4a82; /* Updated to match blue color */
-            color: white;
-            padding: 10px 20px;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            z-index: 1000;
-        }
-        .dashboard-header nav ul {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            justify-content: flex-start; /* Align items to the left */
-        }
-        /* Dashboard Link */
-        .dashboard-header nav ul li.dashboard-link {
-            margin-right: auto; /* Separate Dashboard from other items */
-        }
-        /* Links closer together */
-        .dashboard-header nav ul li {
-            margin-left: 10px; /* Reduce spacing between links */
-        }
-        .dashboard-header nav ul li a {
-            color: white;
-            text-decoration: none;
-            font-weight: bold;
-            padding: 8px 15px;
-        }
-        .dashboard-header nav ul li a:hover {
-            background-color: #154c79;
-            border-radius: 5px;
-        }
-        /* Page Content */
-        .dashboard-main {
-            padding: 100px 20px 20px; /* Ensure content isn't hidden under the fixed header */
-        }
-        .dashboard-section {
-            background-color: white;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px; /* Add space between rows */
-            margin-right: 20px; /* Add space between columns */
-        }
-        .dashboard-section img {
-            max-width: 150px; /* Increase size for better visibility */
-            margin-bottom: 10px;
-            border-radius: 50%; /* Circular image */
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Add shadow for a professional look */
-            border: 3px solid #1e4a82; /* Add border to match theme */
-        }
-        /* Right side (notification and logout) */
-        .nav-right {
-            display: flex;
-            align-items: center;
-        }
-        .nav-right li {
-            margin-left: 10px;
-        }
-        /* Logout Button */
-        .btn-logout {
-            background-color: #ff4b4b;
-            border: none;
-            color: white;
-            padding: 6px 12px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        .btn-logout:hover {
-            background-color: #d73a3a;
-        }
-        .card-deck .card {
-            margin-bottom: 20px;
-            border: none;
-            border-radius: 10px;
-            overflow: hidden;
-            transition: transform 0.2s;
-            font-family: 'Arial', sans-serif;
-        }
-        .card-deck .card:hover {
-            transform: scale(1.05);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
-        .card img {
-            max-width: 150px; /* Increase size for better visibility */
-            margin-bottom: 10px;
-            border-radius: 50%; /* Circular image */
-            display: block;
-            margin-left: auto;
-            margin-right: auto;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Add shadow for a professional look */
-        }
-        .card img + hr {
-            margin-top: 10px;
-            margin-bottom: 20px;
-            border: 0;
-            border-top: 1px solid #ddd;
-        }
-        .card-title {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #1e4a82;
-            margin-bottom: 15px;
-        }
-        .card-text {
-            font-size: 1.1rem;
-            color: #333;
-            margin-bottom: 10px;
-        }
-        .card-text i {
-            margin-right: 10px;
-            color: #1e4a82;
-        }
-    </style>
+    </script>
 </head>
-<body>
+<body class="font-sans bg-gray-50 h-screen flex flex-col overflow-hidden">
     <!-- Navigation Bar -->
-    <header class="dashboard-header">
-        <nav class="dashboard-nav">
-            <ul class="d-flex align-items-center">
-                <li class="dashboard-link"><a href="dashboard.php">Dashboard</a></li>
-                <li><a href="dashboard.php">Home</a></li>
-                <li><a href="edit.php">Edit Profile</a></li>
-                <li><a href="history.php">History</a></li>
-                <li><a href="reservation.php">Reservation</a></li>
-                <li class="nav-right">
-                    <button class="btn-logout" onclick="window.location.href='logout.php'">Log out</button>
-                </li>
-            </ul>
-        </nav>
+    <header class="bg-primary-700 text-white shadow-lg">
+        <div class="container mx-auto">
+            <nav class="flex items-center justify-between px-4 py-3">
+                <div class="flex items-center space-x-4">
+                    <a href="dashboard.php" class="text-xl font-bold">SitIn Dashboard</a>
+                </div>
+                
+                <div class="flex items-center space-x-3">
+                    <div class="hidden md:flex items-center space-x-2 mr-4">
+                        <a href="dashboard.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Home</a>
+                        <div class="relative group">
+                            <button class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                                Notification <i class="fas fa-chevron-down ml-1 text-xs"></i>
+                            </button>
+                            <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 hidden group-hover:block">
+                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Action 1</a>
+                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Action 2</a>
+                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Action 3</a>
+                            </div>
+                        </div>
+                        <a href="edit.php" class="px-3 py-2 rounded bg-primary-800 transition">Edit Profile</a>
+                        <a href="history.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">History</a>
+                        <a href="reservation.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Reservation</a>
+                    </div>
+                    
+                    <button id="mobile-menu-button" class="md:hidden text-white focus:outline-none">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                    <a href="logout.php" class="bg-red-500 hover:bg-red-600 text-white font-medium px-4 py-2 rounded transition">
+                        Log out
+                    </a>
+                </div>
+            </nav>
+        </div>
     </header>
+    
+    <!-- Mobile Navigation Menu (hidden by default) -->
+    <div id="mobile-menu" class="md:hidden bg-primary-800 hidden">
+        <a href="dashboard.php" class="block px-4 py-2 text-white hover:bg-primary-900">Home</a>
+        <button class="mobile-dropdown-button w-full text-left px-4 py-2 text-white hover:bg-primary-900 flex justify-between items-center">
+            Notification <i class="fas fa-chevron-down ml-1"></i>
+        </button>
+        <div class="mobile-dropdown-content hidden bg-primary-900 px-4 py-2">
+            <a href="#" class="block py-1 text-white hover:text-gray-300">Action 1</a>
+            <a href="#" class="block py-1 text-white hover:text-gray-300">Action 2</a>
+            <a href="#" class="block py-1 text-white hover:text-gray-300">Action 3</a>
+        </div>
+        <a href="edit.php" class="block px-4 py-2 text-white bg-primary-900">Edit Profile</a>
+        <a href="history.php" class="block px-4 py-2 text-white hover:bg-primary-900">History</a>
+        <a href="reservation.php" class="block px-4 py-2 text-white hover:bg-primary-900">Reservation</a>
+    </div>
 
-    <div class="container-fluid dashboard-main">
-        <div class="row">
-            <div class="col-md-12">
-                <div class="dashboard-section card">
-                    <form class="edit-profile-form" id="editProfileForm" method="POST" enctype="multipart/form-data">
-                        <div class="form-group text-center">
-                            <img src="<?php echo $profilePicture; ?>" alt="Profile Picture" class="profile-picture" id="profilePicturePreview" onerror="this.onerror=null;this.src='placeholder.jpg';">
-                            <label for="profilePicture" class="custom-file-upload">Edit Picture</label>
-                            <input type="file" class="form-control-file" id="profilePicture" name="profilePicture" onchange="previewProfilePicture(event)">
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group col-md-6">
-                                <label for="idNo">ID NO</label>
-                                <input type="text" class="form-control" id="idNo" name="idNo" placeholder="Enter your ID number" value="<?php echo $idNo; ?>">
+    <!-- Edit Profile Main Content -->
+    <div class="flex-1 overflow-y-auto px-4 py-8 md:px-8">
+        <div class="container mx-auto">
+            <h1 class="text-2xl font-bold text-gray-800 mb-6">Edit Profile</h1>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Profile Preview Card -->
+                <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                    <div class="p-6">
+                        <div class="flex flex-col items-center">
+                            <h2 class="text-xl font-bold text-primary-700 mb-4">Profile Preview</h2>
+                            <div class="w-28 h-28 mb-3 rounded-full border-4 border-primary-100 overflow-hidden">
+                                <img src="<?php echo $profilePicture; ?>" alt="Profile Picture" class="w-full h-full object-cover" 
+                                     onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name=<?php echo urlencode($firstName . ' ' . $lastName); ?>&background=0369a1&color=fff&size=128';">
                             </div>
-                            <div class="form-group col-md-6">
-                                <label for="lastName">Last Name</label>
-                                <input type="text" class="form-control" id="lastName" name="lastName" placeholder="Enter your last name" value="<?php echo $lastName; ?>">
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group col-md-6">
-                                <label for="firstName">First Name</label>
-                                <input type="text" class="form-control" id="firstName" name="firstName" placeholder="Enter your first name" value="<?php echo $firstName; ?>">
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label for="middleName">Middle Name</label>
-                                <input type="text" class="form-control" id="middleName" name="middleName" placeholder="Enter your middle name" value="<?php echo $middleName; ?>">
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group col-md-6">
-                                <label for="course">Course</label>
-                                <select id="course" name="course" class="form-control" required>
-                                    <option value="" disabled>Select Course</option>
-                                    <option value="BSCS" <?php if ($course == 'BSCS') echo 'selected'; ?>>BSCS</option>
-                                    <option value="BSIT" <?php if ($course == 'BSIT') echo 'selected'; ?>>BSIT</option>
-                                    <option value="ACT" <?php if ($course == 'ACT') echo 'selected'; ?>>ACT</option>
-                                    <option value="COE" <?php if ($course == 'COE') echo 'selected'; ?>>COE</option>
-                                    <option value="CPE" <?php if ($course == 'CPE') echo 'selected'; ?>>CPE</option>
-                                    <option value="BSIS" <?php if ($course == 'BSIS') echo 'selected'; ?>>BSIS</option>
-                                    <option value="BSA" <?php if ($course == 'BSA') echo 'selected'; ?>>BSA</option>
-                                    <option value="BSBA" <?php if ($course == 'BSBA') echo 'selected'; ?>>BSBA</option>
-                                    <option value="BSHRM" <?php if ($course == 'BSHRM') echo 'selected'; ?>>BSHRM</option>
-                                    <option value="BSHM" <?php if ($course == 'BSHM') echo 'selected'; ?>>BSHM</option>
-                                    <option value="BSN" <?php if ($course == 'BSN') echo 'selected'; ?>>BSN</option>
-                                    <option value="BSMT" <?php if ($course == 'BSMT') echo 'selected'; ?>>BSMT</option>
-                                </select>
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label for="year">Year Level</label>
-                                <select id="year" name="year" class="form-control" required>
-                                    <option value="" disabled>Year Level</option>
-                                    <option value="1st Year" <?php if ($year == '1st Year') echo 'selected'; ?>>1st Year</option>
-                                    <option value="2nd Year" <?php if ($year == '2nd Year') echo 'selected'; ?>>2nd Year</option>
-                                    <option value="3rd Year" <?php if ($year == '3rd Year') echo 'selected'; ?>>3rd Year</option>
-                                    <option value="4th Year" <?php if ($year == '4th Year') echo 'selected'; ?>>4th Year</option>
-                                </select>
+                            <h3 class="text-lg font-semibold text-gray-800"><?php echo $firstName . ' ' . $lastName; ?></h3>
+                            <p class="text-sm text-gray-500 mb-4"><?php echo $course; ?> - Year <?php echo $year; ?></p>
+                            
+                            <div class="w-full space-y-3">
+                                <?php if(!empty($username)): ?>
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-user text-primary-600"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm text-gray-500">Username</p>
+                                        <p class="font-medium"><?php echo $username; ?></p>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+                                
+                                <?php if(!empty($email)): ?>
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-envelope text-primary-600"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm text-gray-500">Email</p>
+                                        <p class="font-medium"><?php echo $email; ?></p>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+                                
+                                <?php if(!empty($address)): ?>
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-primary-50 flex items-center justify-center flex-shrink-0">
+                                        <i class="fas fa-map-marker-alt text-primary-600"></i>
+                                    </div>
+                                    <div class="ml-3">
+                                        <p class="text-sm text-gray-500">Address</p>
+                                        <p class="font-medium"><?php echo $address; ?></p>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
                             </div>
                         </div>
-                        <div class="form-row">
-                            <div class="form-group col-md-6">
-                                <label for="username">Username</label>
-                                <input type="text" class="form-control" id="username" name="username" placeholder="Enter your username" value="<?php echo $username; ?>">
+                    </div>
+                </div>
+
+                <!-- Edit Profile Form Card -->
+                <div class="bg-white rounded-xl shadow-md overflow-hidden md:col-span-2">
+                    <div class="p-6">
+                        <h2 class="text-xl font-bold text-primary-700 mb-6">Update Your Information</h2>
+                        
+                        <form method="POST" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" enctype="multipart/form-data">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                <!-- ID Number -->
+                                <div>
+                                    <label for="idNo" class="block text-sm font-medium text-gray-700 mb-1">ID Number</label>
+                                    <input type="text" name="idNo" id="idNo" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" value="<?php echo $idNo; ?>">
+                                </div>
+                                
+                                <!-- Username -->
+                                <div>
+                                    <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                                    <input type="text" name="username" id="username" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" value="<?php echo $username; ?>">
+                                </div>
+                                
+                                <!-- First Name -->
+                                <div>
+                                    <label for="firstName" class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                                    <input type="text" name="firstName" id="firstName" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" value="<?php echo $firstName; ?>" required>
+                                </div>
+                                
+                                <!-- Last Name -->
+                                <div>
+                                    <label for="lastName" class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                                    <input type="text" name="lastName" id="lastName" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" value="<?php echo $lastName; ?>" required>
+                                </div>
+                                
+                                <!-- Middle Name -->
+                                <div>
+                                    <label for="middleName" class="block text-sm font-medium text-gray-700 mb-1">Middle Name</label>
+                                    <input type="text" name="middleName" id="middleName" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" value="<?php echo $middleName; ?>">
+                                </div>
+                                
+                                <!-- Course -->
+                                <div>
+                                    <label for="course" class="block text-sm font-medium text-gray-700 mb-1">Course</label>
+                                    <select name="course" id="course" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                        <option value="BSIT" <?php if($course == 'BSIT') echo 'selected'; ?>>Bachelor of Science in Information Technology</option>
+                                        <option value="BSCS" <?php if($course == 'BSCS') echo 'selected'; ?>>Bachelor of Science in Computer Science</option>
+                                        <option value="BSIS" <?php if($course == 'BSIS') echo 'selected'; ?>>Bachelor of Science in Information Systems</option>
+                                    </select>
+                                </div>
+                                
+                                <!-- Year Level -->
+                                <div>
+                                    <label for="yearLevel" class="block text-sm font-medium text-gray-700 mb-1">Year Level</label>
+                                    <select name="yearLevel" id="yearLevel" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                        <option value="1" <?php if($year == '1') echo 'selected'; ?>>First Year</option>
+                                        <option value="2" <?php if($year == '2') echo 'selected'; ?>>Second Year</option>
+                                        <option value="3" <?php if($year == '3') echo 'selected'; ?>>Third Year</option>
+                                        <option value="4" <?php if($year == '4') echo 'selected'; ?>>Fourth Year</option>
+                                    </select>
+                                </div>
+                                
+                                <!-- Email -->
+                                <div>
+                                    <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                    <input type="email" name="email" id="email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" value="<?php echo $email; ?>" required>
+                                </div>
+                                
+                                <!-- Address -->
+                                <div>
+                                    <label for="address" class="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                                    <input type="text" name="address" id="address" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" value="<?php echo $address; ?>">
+                                </div>
                             </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="email">Email</label>
-                            <input type="email" class="form-control" id="email" name="email" placeholder="Enter your email" value="<?php echo $email; ?>">
-                        </div>
-                        <div class="form-group">
-                            <label for="address">Address</label>
-                            <input type="text" class="form-control" id="address" name="address" placeholder="Enter your address" value="<?php echo $address; ?>">
-                        </div>
-                        <button type="submit" class="btn btn-save">Save Changes</button>
-                    </form>
+                            
+                            <!-- Profile Picture -->
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Profile Picture</label>
+                                <div class="flex items-center">
+                                    <div class="w-20 h-20 rounded-full bg-gray-100 mr-4 overflow-hidden">
+                                        <img id="previewImage" src="<?php echo $profilePicture; ?>" alt="Preview" class="w-full h-full object-cover"
+                                            onerror="this.onerror=null;this.src='https://ui-avatars.com/api/?name=<?php echo urlencode($firstName . ' ' . $lastName); ?>&background=0369a1&color=fff&size=128';">
+                                    </div>
+                                    <label class="cursor-pointer bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                        Choose new image
+                                        <input type="file" name="profilePicture" id="profilePicture" class="hidden" onchange="previewFile()">
+                                    </label>
+                                </div>
+                                <p class="mt-1 text-xs text-gray-500">JPG, JPEG, PNG or GIF (Max. 5MB)</p>
+                            </div>
+                            
+                            <!-- Password Update Section -->
+                            <div class="border-t border-gray-200 pt-6 mt-6">
+                                <h3 class="text-lg font-semibold text-gray-800 mb-4">Change Password</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label for="currentPassword" class="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                                        <input type="password" name="currentPassword" id="currentPassword" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                    </div>
+                                    <div></div>
+                                    <div>
+                                        <label for="newPassword" class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                                        <input type="password" name="newPassword" id="newPassword" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                    </div>
+                                    <div>
+                                        <label for="confirmPassword" class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                                        <input type="password" name="confirmPassword" id="confirmPassword" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Submit Button -->
+                            <div class="flex justify-end mt-6">
+                                <button type="submit" class="bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-6 rounded-md transition">
+                                    Save Changes
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Bootstrap JS and dependencies -->
-    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.1/dist/umd/popper.min.js"></script>
-    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    
+    <footer class="bg-white border-t border-gray-200 py-4 mt-auto">
+        <div class="container mx-auto px-4 text-center text-gray-500 text-sm">
+            &copy; 2024 SitIn System. All rights reserved.
+        </div>
+    </footer>
+    
     <script>
-        function previewProfilePicture(event) {
+        // Toggle mobile menu
+        document.getElementById('mobile-menu-button').addEventListener('click', function() {
+            document.getElementById('mobile-menu').classList.toggle('hidden');
+        });
+        
+        // Toggle mobile dropdown menus
+        document.querySelectorAll('.mobile-dropdown-button').forEach(button => {
+            button.addEventListener('click', function() {
+                this.nextElementSibling.classList.toggle('hidden');
+            });
+        });
+        
+        // Preview selected image file
+        function previewFile() {
+            const preview = document.getElementById('previewImage');
+            const file = document.querySelector('input[type=file]').files[0];
             const reader = new FileReader();
-            reader.onload = function() {
-                const output = document.getElementById('profilePicturePreview');
-                output.src = reader.result;
-            };
-            reader.readAsDataURL(event.target.files[0]);
+            
+            reader.onloadend = function() {
+                preview.src = reader.result;
+            }
+            
+            if (file) {
+                reader.readAsDataURL(file);
+            } else {
+                preview.src = "<?php echo $profilePicture; ?>";
+            }
         }
     </script>
 </body>
