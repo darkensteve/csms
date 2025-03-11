@@ -40,6 +40,62 @@ if ($result) {
     $student_count = $row['total'];
 }
 
+// Get active sit-ins count - updated to use correct table name
+$active_sitins = 0;
+$sitin_query = "SELECT COUNT(*) as active FROM sit_in_sessions WHERE status = 'active'";
+$sitin_result = mysqli_query($conn, $sitin_query);
+
+if ($sitin_result) {
+    $sitin_row = mysqli_fetch_assoc($sitin_result);
+    $active_sitins = $sitin_row['active'];
+}
+
+// Get sit-in purpose distribution for pie chart
+$purpose_distribution = array();
+
+// Query to get distribution by purpose
+$purpose_query = "SELECT purpose, COUNT(*) as count FROM sit_in_sessions GROUP BY purpose";
+$purpose_result = mysqli_query($conn, $purpose_query);
+
+if ($purpose_result) {
+    while ($row = mysqli_fetch_assoc($purpose_result)) {
+        $purpose = $row['purpose'] ?: 'Other';
+        // Skip empty purposes
+        if (trim($purpose) === '') {
+            $purpose = 'Other';
+        }
+        $count = $row['count'];
+        
+        if (isset($purpose_distribution[$purpose])) {
+            $purpose_distribution[$purpose] += $count;
+        } else {
+            $purpose_distribution[$purpose] = $count;
+        }
+    }
+}
+
+// If no purpose data found or empty, create sample distribution
+if (count($purpose_distribution) == 0) {
+    $purpose_distribution = array(
+        'Research' => 25,
+        'Study' => 20,
+        'Project Work' => 15,
+        'Consultation' => 10,
+        'Other' => 5
+    );
+}
+
+// Limit to top 5 purposes if there are many
+if (count($purpose_distribution) > 5) {
+    arsort($purpose_distribution); // Sort by count descending
+    $top_purposes = array_slice($purpose_distribution, 0, 4, true);
+    $others_count = array_sum(array_slice($purpose_distribution, 4, null, true));
+    if ($others_count > 0) {
+        $top_purposes['Other'] = $others_count;
+    }
+    $purpose_distribution = $top_purposes;
+}
+
 // Get student distribution by year level for pie chart
 $student_distribution = array(
     'First Year' => 0,
@@ -428,20 +484,28 @@ if ($result) {
                 
                 <div class="flex items-center space-x-3">
                     <div class="hidden md:flex items-center space-x-2 mr-4">
-                        <a href="admin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Home</a>
-                        <a href="search_student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Search</a>
-                        <a href="student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Students</a>
-                        <div class="relative group">
-                            <button class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
-                                Sit-In <i class="fas fa-chevron-down ml-1 text-xs"></i>
-                            </button>
-                            <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 hidden group-hover:block">
-                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">View Sit-In Records</a>
-                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Sit-In Reports</a>
-                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Feedback Reports</a>
-                            </div>
-                        </div>
-                        <a href="#" class="px-3 py-2 rounded hover:bg-primary-800 transition">Reservation</a>
+                        <a href="admin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-home mr-1"></i> Home
+                        </a>
+                        <a href="search_student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-search mr-1"></i> Search
+                        </a>
+                        <a href="student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-users mr-1"></i> Students
+                        </a>
+                        <!-- Modified: Split Sit-In into separate buttons -->
+                        <a href="current_sitin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-user-check mr-1"></i> Sit-In
+                        </a>
+                        <a href="sitin_records.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-list mr-1"></i> Records
+                        </a>
+                        <a href="sitin_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-chart-bar mr-1"></i> Reports
+                        </a>
+                        <a href="feedback_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-comment mr-1"></i> Feedback
+                        </a>
                     </div>
                     
                     <button id="mobile-menu-button" class="md:hidden text-white focus:outline-none">
@@ -449,8 +513,8 @@ if ($result) {
                     </button>
                     <div class="relative">
                         <button class="flex items-center space-x-2 focus:outline-none" id="userDropdown" onclick="toggleUserDropdown()">
-                            <div class="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center">
-                                <span class="font-medium text-sm"><?php echo substr($admin_username, 0, 1); ?></span>
+                            <div class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
+                                <img src="assets/newp.jpg" alt="Admin" class="w-full h-full object-cover">-full object-cover">
                             </div>
                             <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username); ?></span>
                             <i class="fas fa-chevron-down text-xs"></i>
@@ -460,8 +524,8 @@ if ($result) {
                                 <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
                                     <i class="fas fa-user-circle mr-2"></i> Profile
                                 </a>
-                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
-                                    <i class="fas fa-cog mr-2"></i> Settings
+                                <a href="edit_admin_profile.php" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
+                                    <i class="fas fa-user-edit mr-2"></i> Edit Profile
                                 </a>
                                 <div class="border-t border-gray-100"></div>
                                 <a href="logout_admin.php" class="block px-4 py-2 text-red-600 hover:bg-gray-100">
@@ -477,18 +541,28 @@ if ($result) {
     
     <!-- Mobile Navigation Menu (hidden by default) -->
     <div id="mobile-menu" class="md:hidden bg-primary-800 hidden">
-        <a href="admin.php" class="block px-4 py-2 text-white hover:bg-primary-900">Home</a>
-        <a href="admin/search_student.php" class="block px-4 py-2 text-white hover:bg-primary-900">Search</a>
-        <a href="#" class="block px-4 py-2 text-white hover:bg-primary-900">Students</a>
-        <button class="mobile-dropdown-button w-full text-left px-4 py-2 text-white hover:bg-primary-900 flex justify-between items-center">
-            Sit-In <i class="fas fa-chevron-down ml-1"></i>
-        </button>
-        <div class="mobile-dropdown-content hidden bg-primary-900 px-4 py-2">
-            <a href="#" class="block py-1 text-white hover:text-gray-300">View Sit-In Records</a>
-            <a href="#" class="block py-1 text-white hover:text-gray-300">Sit-In Reports</a>
-            <a href="#" class="block py-1 text-white hover:text-gray-300">Feedback Reports</a>
-        </div>
-        <a href="#" class="block px-4 py-2 text-white hover:bg-primary-900">Reservation</a>
+        <a href="admin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-home mr-2"></i> Home
+        </a>
+        <a href="search_student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-search mr-2"></i> Search
+        </a>
+        <a href="student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-users mr-2"></i> Students
+        </a>
+        <!-- Modified: Split Sit-In into separate buttons for mobile menu -->
+        <a href="sitin_register.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-user-check mr-2"></i> Sit-In
+        </a>
+        <a href="sitin_records.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-list mr-2"></i> View Sit-In Records
+        </a>
+        <a href="sitin_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-chart-bar mr-2"></i> Sit-In Reports
+        </a>
+        <a href="feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-comment mr-2"></i> Feedback Reports
+        </a>
     </div>
 
     <!-- Dashboard Main Content -->
@@ -515,7 +589,7 @@ if ($result) {
                             </div>
                             <div class="px-2 w-full sm:w-1/3 mb-4 sm:mb-0">
                                 <div class="bg-green-50 border border-green-100 p-4 rounded-lg">
-                                    <div class="text-3xl font-bold text-green-700">47</div>
+                                    <div class="text-3xl font-bold text-green-700"><?php echo $active_sitins; ?></div>
                                     <div class="text-sm text-green-900">Active Sit-Ins</div>
                                 </div>
                             </div>
@@ -541,11 +615,11 @@ if ($result) {
                                 </div>
                             </div>
                             
-                            <!-- Student Distribution Chart by Department -->
+                            <!-- Sit-In Purpose Distribution Chart -->
                             <div class="bg-gray-50 p-4 rounded-lg">
-                                <h4 class="text-base font-medium text-gray-700 mb-2">Department Distribution</h4>
+                                <h4 class="text-base font-medium text-gray-700 mb-2">Sit-In Purpose Distribution</h4>
                                 <div class="chart-container">
-                                    <canvas id="studentDeptChart"></canvas>
+                                    <canvas id="sitinPurposeChart"></canvas>
                                 </div>
                             </div>
                         </div>
@@ -696,13 +770,13 @@ if ($result) {
                 }
             });
             
-            // Department Distribution Chart
-            const deptCtx = document.getElementById('studentDeptChart').getContext('2d');
+            // Sit-In Purpose Distribution Chart
+            const purposeCtx = document.getElementById('sitinPurposeChart').getContext('2d');
             
-            // Filter out any departments with zero students
-            const deptLabels = [];
-            const deptData = [];
-            const deptColors = [
+            // Filter out any purposes with zero sit-ins
+            const purposeLabels = [];
+            const purposeData = [];
+            const purposeColors = [
                 '#3b82f6', // blue
                 '#10b981', // emerald
                 '#f59e0b', // amber
@@ -710,23 +784,23 @@ if ($result) {
                 '#8b5cf6'  // violet
             ];
             
-            let deptColorIndex = 0;
-            const deptColorsUsed = [];
+            let purposeColorIndex = 0;
+            const purposeColorsUsed = [];
             
-            <?php foreach ($department_distribution as $dept => $count): ?>
-                deptLabels.push('<?php echo addslashes($dept); ?>');
-                deptData.push(<?php echo $count; ?>);
-                deptColorsUsed.push(deptColors[deptColorIndex % deptColors.length]);
-                deptColorIndex++;
+            <?php foreach ($purpose_distribution as $purpose => $count): ?>
+                purposeLabels.push('<?php echo addslashes($purpose); ?>');
+                purposeData.push(<?php echo $count; ?>);
+                purposeColorsUsed.push(purposeColors[purposeColorIndex % purposeColors.length]);
+                purposeColorIndex++;
             <?php endforeach; ?>
             
-            new Chart(deptCtx, {
+            new Chart(purposeCtx, {
                 type: 'pie',
                 data: {
-                    labels: deptLabels,
+                    labels: purposeLabels,
                     datasets: [{
-                        data: deptData,
-                        backgroundColor: deptColorsUsed,
+                        data: purposeData,
+                        backgroundColor: purposeColorsUsed,
                         borderWidth: 1
                     }]
                 },

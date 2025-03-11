@@ -374,20 +374,28 @@ if (empty($labs)) {
                 
                 <div class="flex items-center space-x-3">
                     <div class="hidden md:flex items-center space-x-2 mr-4">
-                        <a href="admin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Home</a>
-                        <a href="search_student.php" class="px-3 py-2 bg-primary-800 rounded transition">Search</a>
-                        <a href="student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Students</a>
-                        <div class="relative group">
-                            <button class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
-                                Sit-In <i class="fas fa-chevron-down ml-1 text-xs"></i>
-                            </button>
-                            <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 hidden group-hover:block">
-                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">View Sit-In Records</a>
-                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Sit-In Reports</a>
-                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Feedback Reports</a>
-                            </div>
-                        </div>
-                        <a href="#" class="px-3 py-2 rounded hover:bg-primary-800 transition">Reservation</a>
+                        <a href="admin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-home mr-1"></i> Home
+                        </a>
+                        <a href="search_student.php" class="px-3 py-2 bg-primary-800 rounded transition flex items-center">
+                            <i class="fas fa-search mr-1"></i> Search
+                        </a>
+                        <a href="student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-users mr-1"></i> Students
+                        </a>
+                        <!-- Update navigation link to be consistent with current_sitin.php -->
+                        <a href="current_sitin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-user-check mr-1"></i> Sit-In
+                        </a>
+                        <a href="sitin_records.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-list mr-1"></i> Records
+                        </a>
+                        <a href="sitin_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-chart-bar mr-1"></i> Reports
+                        </a>
+                        <a href="feedback_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-comment mr-1"></i> Feedback
+                        </a>
                     </div>
                     
                     <button id="mobile-menu-button" class="md:hidden text-white focus:outline-none">
@@ -395,8 +403,8 @@ if (empty($labs)) {
                     </button>
                     <div class="relative">
                         <button class="flex items-center space-x-2 focus:outline-none" id="userDropdown" onclick="toggleUserDropdown()">
-                            <div class="w-8 h-8 rounded-full bg-primary-600 flex items-center justify-center">
-                                <span class="font-medium text-sm"><?php echo substr($admin_username, 0, 1); ?></span>
+                            <div class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
+                                <img src="assets/newp.jpg" alt="Admin" class="w-full h-full object-cover">
                             </div>
                             <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username); ?></span>
                             <i class="fas fa-chevron-down text-xs"></i>
@@ -423,18 +431,27 @@ if (empty($labs)) {
     
     <!-- Mobile Navigation Menu (hidden by default) -->
     <div id="mobile-menu" class="md:hidden bg-primary-800 hidden">
-        <a href="admin.php" class="block px-4 py-2 text-white hover:bg-primary-900">Home</a>
-        <a href="search_student.php" class="block px-4 py-2 text-white bg-primary-900">Search</a>
-        <a href="#" class="block px-4 py-2 text-white hover:bg-primary-900">Students</a>
-        <button class="mobile-dropdown-button w-full text-left px-4 py-2 text-white hover:bg-primary-900 flex justify-between items-center">
-            Sit-In <i class="fas fa-chevron-down ml-1"></i>
-        </button>
-        <div class="mobile-dropdown-content hidden bg-primary-900 px-4 py-2">
-            <a href="#" class="block py-1 text-white hover:text-gray-300">View Sit-In Records</a>
-            <a href="#" class="block py-1 text-white hover:text-gray-300">Sit-In Reports</a>
-            <a href="#" class="block py-1 text-white hover:text-gray-300">Feedback Reports</a>
-        </div>
-        <a href="#" class="block px-4 py-2 text-white hover:bg-primary-900">Reservation</a>
+        <a href="admin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-home mr-2"></i> Home
+        </a>
+        <a href="search_student.php" class="block px-4 py-2 text-white bg-primary-900">
+            <i class="fas fa-search mr-2"></i> Search
+        </a>
+        <a href="student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-users mr-2"></i> Students
+        </a>
+        <a href="current_sitin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-user-check mr-2"></i> Sit-In
+        </a>
+        <a href="sitin_records.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-list mr-2"></i> Records
+        </a>
+        <a href="sitin_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-chart-bar mr-2"></i> Reports
+        </a>
+        <a href="feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-comment mr-2"></i> Feedback
+        </a>
     </div>
 
     <!-- Main Content -->
@@ -619,6 +636,11 @@ if (empty($labs)) {
                            class="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
                 </div>
                 
+                <!-- Add redirect parameter to indicate we want to go to current_sitin.php -->
+                <input type="hidden" name="redirect_to_current" value="1">
+                
+                <!-- Remove the old user_id field as we're using student_id instead -->
+                
                 <div>
                     <label for="purpose" class="block text-sm font-medium text-gray-700">Purpose</label>
                     <select id="purpose" name="purpose" required
@@ -648,13 +670,6 @@ if (empty($labs)) {
                         <option value="<?php echo htmlspecialchars($lab['lab_id']); ?>"><?php echo htmlspecialchars($lab['lab_name']); ?></option>
                         <?php endforeach; ?>
                     </select>
-                </div>
-                
-                <div>
-                    <label for="remaining_sessions" class="block text-sm font-medium text-gray-700">Remaining Sessions</label>
-                    <input type="number" id="remaining_sessions" name="remaining_sessions" min="1" max="10" value="1" required
-                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
-                    <p class="text-sm text-gray-500 mt-1">Enter the number of sessions the student is allowed.</p>
                 </div>
                 
                 <div class="flex space-x-3 pt-4">
@@ -749,6 +764,7 @@ if (empty($labs)) {
             function openSitInModal(studentId, studentName) {
                 document.getElementById('student_id').value = studentId;
                 document.getElementById('student_name').value = studentName;
+                
                 modal.classList.add('show');
                 document.body.style.overflow = 'hidden'; // Prevent scrolling behind modal
             }
