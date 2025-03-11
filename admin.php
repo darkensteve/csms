@@ -260,6 +260,27 @@ if (count($department_distribution) > 5) {
     $department_distribution = $top_departments;
 }
 
+// Check if the announcements table exists, and create it if it doesn't
+$table_check_query = "SHOW TABLES LIKE 'announcements'";
+$table_exists = mysqli_query($conn, $table_check_query);
+
+if (mysqli_num_rows($table_exists) == 0) {
+    // Table doesn't exist, create it
+    $create_table_query = "CREATE TABLE `announcements` (
+                          `id` int(11) NOT NULL AUTO_INCREMENT,
+                          `title` varchar(255) NOT NULL,
+                          `content` text NOT NULL,
+                          `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                          `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                          PRIMARY KEY (`id`)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+                        
+    if (!mysqli_query($conn, $create_table_query)) {
+        // Handle error
+        $_SESSION['announcement_error'] = "Error creating announcements table: " . mysqli_error($conn);
+    }
+}
+
 // Fetch announcements from database
 $announcements = [];
 $query = "SELECT * FROM announcements ORDER BY created_at DESC LIMIT 10";
