@@ -385,7 +385,7 @@ if ($result && $result->num_rows > 0) {
                                 <div class="bg-blue-50 rounded-lg p-4">
                                     <div class="flex justify-between items-center mb-2">
                                         <h3 class="font-semibold text-gray-800">
-                                            <?php echo htmlspecialchars($announcement['admin_username'] ?? 'System Admin'); ?>
+                                            <?php echo htmlspecialchars($announcement['admin_username'] ?? 'CCS Admin'); ?>
                                         </h3>
                                         <span class="text-xs text-gray-500">
                                             <?php echo date('Y-M-d', strtotime($announcement['created_at'])); ?>
