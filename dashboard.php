@@ -263,9 +263,17 @@ if ($result && $result->num_rows > 0) {
                             die("Connection failed: " . $conn->connect_error);
                         }
 
-                        // Fetch user details from the database using the logged-in user's ID
-                        $sql = "SELECT idNo, firstName, lastName, middleName, course, yearLevel, email, address, profile_picture, 
-                                IFNULL(remaining_sessions, 30) AS remaining_sessions FROM users WHERE user_id = ?";
+                        // Check if remaining_sessions column exists in users table
+                        $column_check = $conn->query("SHOW COLUMNS FROM users LIKE 'remaining_sessions'");
+                        
+                        if ($column_check->num_rows == 0) {
+                            // Add remaining_sessions column if it doesn't exist
+                            $conn->query("ALTER TABLE users ADD COLUMN remaining_sessions INT(11) NOT NULL DEFAULT 30");
+                        }
+
+                        // Get user data with remaining sessions
+                        $sql = "SELECT idNo, firstName, lastName, middleName, course, yearLevel, email, address, profile_picture, remaining_sessions 
+                                FROM users WHERE user_id = ?";
                         $stmt = $conn->prepare($sql);
                         $stmt->bind_param("i", $loggedInUserId);
                         $stmt->execute();
@@ -282,6 +290,7 @@ if ($result && $result->num_rows > 0) {
                             $email = $row['email'] ?? '';
                             $address = $row['address'] ?? '';
                             $profilePicture = $row['profile_picture'] ?? 'profile.jpg';
+                            // Get remaining sessions from database or use default
                             $remainingSessions = $row['remaining_sessions'] ?? 30;
                         } else {
                             echo "No user data found.";

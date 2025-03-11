@@ -221,6 +221,45 @@ if (isset($_GET['search'])) {
 
 // Get admin username for display if available
 $admin_username = $_SESSION['admin_username'] ?? 'Admin';
+
+// Check for sit-in messages from session
+$sitin_message = '';
+$sitin_status = '';
+
+if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
+    $sitin_message = $_SESSION['sitin_message'];
+    $sitin_status = $_SESSION['sitin_status'];
+    
+    // Clear the message after retrieving it
+    unset($_SESSION['sitin_message']);
+    unset($_SESSION['sitin_status']);
+}
+
+// Get available labs - with table existence check
+$labs = [];
+$table_check = $conn->query("SHOW TABLES LIKE 'labs'");
+if ($table_check->num_rows > 0) {
+    // Labs table exists, fetch labs
+    $labs_query = "SELECT * FROM labs ORDER BY lab_name";
+    $labs_result = $conn->query($labs_query);
+    if ($labs_result && $labs_result->num_rows > 0) {
+        while ($lab = $labs_result->fetch_assoc()) {
+            $labs[] = $lab;
+        }
+    }
+}
+
+// If no labs found (table doesn't exist or is empty), use default values
+if (empty($labs)) {
+    $labs = [
+        ['lab_id' => 1, 'lab_name' => 'Laboratory 524'],
+        ['lab_id' => 2, 'lab_name' => 'Laboratory 526'],
+        ['lab_id' => 3, 'lab_name' => 'Laboratory 528'],
+        ['lab_id' => 4, 'lab_name' => 'Laboratory 530'],
+        ['lab_id' => 5, 'lab_name' => 'Laboratory 542'],
+        ['lab_id' => 6, 'lab_name' => 'Mac Laboratory']
+    ];
+}
 ?>
 
 <!DOCTYPE html>
@@ -260,6 +299,67 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
     <style>
         body {
             background-color: #f8fafc;
+        }
+        
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 50;
+            overflow: auto;
+        }
+        
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+            transform: scale(0.8);
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+        
+        .modal.show .modal-content {
+            transform: scale(1);
+            opacity: 1;
+        }
+
+        /* Alert styles */
+        .alert {
+            padding: 1rem;
+            border-radius: 0.375rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .alert-success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border-left: 4px solid #10b981;
+        }
+        
+        .alert-error {
+            background-color: #fee2e2;
+            color: #b91c1c;
+            border-left: 4px solid #ef4444;
+        }
+        
+        .alert-icon {
+            margin-right: 0.75rem;
+            flex-shrink: 0;
         }
     </style>
 </head>
@@ -347,6 +447,26 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
                 </div>
                 
                 <div class="p-6">
+                    <!-- Display sit-in messages -->
+                    <?php if (!empty($sitin_message)): ?>
+                        <div class="alert <?php echo $sitin_status === 'success' ? 'alert-success' : 'alert-error'; ?> mb-4">
+                            <div class="alert-icon">
+                                <?php if ($sitin_status === 'success'): ?>
+                                    <i class="fas fa-check-circle text-lg"></i>
+                                <?php else: ?>
+                                    <i class="fas fa-exclamation-circle text-lg"></i>
+                                <?php endif; ?>
+                            </div>
+                            <div>
+                                <?php if ($sitin_status === 'success'): ?>
+                                    <p><strong>Success!</strong> Sit-in registration successful! Remaining sessions have been updated.</p>
+                                <?php else: ?>
+                                    <p><?php echo htmlspecialchars($sitin_message); ?></p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                    
                     <!-- Search Form -->
                     <form method="GET" action="" class="mb-6">
                         <div class="flex flex-col md:flex-row gap-4">
@@ -408,28 +528,31 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Course</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Year Level</th>
                                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Email</th>
-                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Address</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody class="divide-y divide-gray-200 bg-white">
                                             <?php foreach ($students as $student): ?>
-                                                <tr class="hover:bg-gray-50">
+                                                <?php
+                                                // Format name as LASTNAME, FIRSTNAME MI.
+                                                $name = '';
+                                                if (isset($student['LASTNAME']) && isset($student['FIRSTNAME'])) {
+                                                    $name = $student['LASTNAME'] . ', ' . $student['FIRSTNAME'];
+                                                    if (!empty($student['MIDDLENAME'])) {
+                                                        $middle_initial = substr($student['MIDDLENAME'], 0, 1);
+                                                        $name .= ' ' . $middle_initial . '.';
+                                                    }
+                                                }
+                                                $student_id = isset($student['IDNO']) ? $student['IDNO'] : ($student['USER_ID'] ?? 'N/A');
+                                                ?>
+                                                <tr class="hover:bg-gray-50 cursor-pointer student-row" 
+                                                    data-student-id="<?php echo htmlspecialchars($student_id); ?>"
+                                                    data-student-name="<?php echo htmlspecialchars($name); ?>">
                                                     <td class="px-4 py-3 text-sm text-gray-700">
-                                                        <?php echo isset($student['IDNO']) ? htmlspecialchars($student['IDNO']) : htmlspecialchars($student['USER_ID'] ?? 'N/A'); ?>
+                                                        <?php echo htmlspecialchars($student_id); ?>
                                                     </td>
                                                     <td class="px-4 py-3 text-sm text-gray-700">
-                                                        <?php
-                                                        // Format name as LASTNAME, FIRSTNAME MI.
-                                                        $name = '';
-                                                        if (isset($student['LASTNAME']) && isset($student['FIRSTNAME'])) {
-                                                            $name = $student['LASTNAME'] . ', ' . $student['FIRSTNAME'];
-                                                            if (!empty($student['MIDDLENAME'])) {
-                                                                $middle_initial = substr($student['MIDDLENAME'], 0, 1);
-                                                                $name .= ' ' . $middle_initial . '.';
-                                                            }
-                                                        }
-                                                        echo htmlspecialchars($name);
-                                                        ?>
+                                                        <?php echo htmlspecialchars($name); ?>
                                                     </td>
                                                     <td class="px-4 py-3 text-sm text-gray-700">
                                                         <?php echo htmlspecialchars($student['COURSE'] ?? 'N/A'); ?>
@@ -441,52 +564,11 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
                                                         <?php echo htmlspecialchars($student['EMAIL'] ?? 'N/A'); ?>
                                                     </td>
                                                     <td class="px-4 py-3 text-sm text-gray-700">
-                                                        <?php 
-                                                        // Check for address in various possible column names
-                                                        $address = '';
-                                                        
-                                                        // Try common address field names
-                                                        $address_fields = ['ADDRESS', 'HOME_ADDRESS', 'STUDENT_ADDRESS', 'PERMANENT_ADDRESS', 'CURRENT_ADDRESS'];
-                                                        
-                                                        foreach ($address_fields as $field) {
-                                                            if (isset($student[$field]) && !empty($student[$field])) {
-                                                                $address = $student[$field];
-                                                                break;
-                                                            }
-                                                        }
-                                                        
-                                                        // If no address found in common fields, try to construct from parts
-                                                        if (empty($address)) {
-                                                            $address_parts = [];
-                                                            
-                                                            // Check for address components
-                                                            if (isset($student['STREET']) && !empty($student['STREET'])) {
-                                                                $address_parts[] = $student['STREET'];
-                                                            }
-                                                            
-                                                            if (isset($student['BARANGAY']) && !empty($student['BARANGAY'])) {
-                                                                $address_parts[] = $student['BARANGAY'];
-                                                            }
-                                                            
-                                                            if (isset($student['CITY']) && !empty($student['CITY'])) {
-                                                                $address_parts[] = $student['CITY'];
-                                                            }
-                                                            
-                                                            if (isset($student['PROVINCE']) && !empty($student['PROVINCE'])) {
-                                                                $address_parts[] = $student['PROVINCE'];
-                                                            }
-                                                            
-                                                            if (isset($student['ZIP_CODE']) && !empty($student['ZIP_CODE'])) {
-                                                                $address_parts[] = $student['ZIP_CODE'];
-                                                            }
-                                                            
-                                                            if (!empty($address_parts)) {
-                                                                $address = implode(', ', $address_parts);
-                                                            }
-                                                        }
-                                                        
-                                                        echo !empty($address) ? htmlspecialchars($address) : 'No address available';
-                                                        ?>
+                                                        <button class="px-3 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 sit-in-btn"
+                                                                data-student-id="<?php echo htmlspecialchars($student_id); ?>"
+                                                                data-student-name="<?php echo htmlspecialchars($name); ?>">
+                                                            Sit In
+                                                        </button>
                                                     </td>
                                                 </tr>
                                             <?php endforeach; ?>
@@ -511,6 +593,79 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
                     <?php endif; ?>
                 </div>
             </div>
+        </div>
+    </div>
+    
+    <!-- Sit-In Form Modal -->
+    <div id="sitInModal" class="modal">
+        <div class="modal-content p-6 mx-4">
+            <div class="mb-4 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-gray-900">Register Sit-In</h3>
+                <button id="closeModal" class="text-gray-400 hover:text-gray-500">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="sitInForm" action="process_sitin.php" method="POST" class="space-y-4">
+                <div>
+                    <label for="student_id" class="block text-sm font-medium text-gray-700">ID Number</label>
+                    <input type="text" id="student_id" name="student_id" readonly
+                           class="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                </div>
+                
+                <div>
+                    <label for="student_name" class="block text-sm font-medium text-gray-700">Student Name</label>
+                    <input type="text" id="student_name" name="student_name" readonly
+                           class="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                </div>
+                
+                <div>
+                    <label for="purpose" class="block text-sm font-medium text-gray-700">Purpose</label>
+                    <select id="purpose" name="purpose" required
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                        <option value="" selected disabled>Select purpose</option>
+                        <option value="C Programming">C Programming</option>
+                        <option value="Java Programming">Java Programming</option>
+                        <option value="C# Programming">C# Programming</option>
+                        <option value="PHP Programming">PHP Programming</option>
+                        <option value="ASP.net Programming">ASP.net Programming</option>
+                        <option value="Others">Others</option>
+                    </select>
+                </div>
+                
+                <div id="othersContainer" class="hidden">
+                    <label for="other_purpose" class="block text-sm font-medium text-gray-700">Specify Purpose</label>
+                    <input type="text" id="other_purpose" name="other_purpose" 
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                </div>
+                
+                <div>
+                    <label for="lab" class="block text-sm font-medium text-gray-700">Lab</label>
+                    <select id="lab" name="lab_id" required
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                        <option value="" selected disabled>Select lab</option>
+                        <?php foreach ($labs as $lab): ?>
+                        <option value="<?php echo htmlspecialchars($lab['lab_id']); ?>"><?php echo htmlspecialchars($lab['lab_name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                
+                <div>
+                    <label for="remaining_sessions" class="block text-sm font-medium text-gray-700">Remaining Sessions</label>
+                    <input type="number" id="remaining_sessions" name="remaining_sessions" min="1" max="10" value="1" required
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                    <p class="text-sm text-gray-500 mt-1">Enter the number of sessions the student is allowed.</p>
+                </div>
+                
+                <div class="flex space-x-3 pt-4">
+                    <button type="button" id="cancelSitIn" class="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition">
+                        Close
+                    </button>
+                    <button type="submit" class="flex-1 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition">
+                        Register Sit In
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
     
@@ -542,6 +697,82 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
         window.addEventListener('click', function(e) {
             if (!document.getElementById('userDropdown').contains(e.target)) {
                 document.getElementById('userMenu').classList.add('hidden');
+            }
+        });
+        
+        // Sit-In Modal Functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('sitInModal');
+            const closeBtn = document.getElementById('closeModal');
+            const cancelBtn = document.getElementById('cancelSitIn');
+            const purposeSelect = document.getElementById('purpose');
+            const othersContainer = document.getElementById('othersContainer');
+            
+            // Open the modal when clicking on a student row or sit-in button
+            document.querySelectorAll('.student-row').forEach(row => {
+                row.addEventListener('click', function(e) {
+                    // Prevent triggering when clicking on the button column
+                    if (!e.target.closest('.sit-in-btn')) {
+                        openSitInModal(this.dataset.studentId, this.dataset.studentName);
+                    }
+                });
+            });
+            
+            // Open modal on sit-in button click
+            document.querySelectorAll('.sit-in-btn').forEach(button => {
+                button.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    openSitInModal(this.dataset.studentId, this.dataset.studentName);
+                });
+            });
+            
+            // Close modal functions
+            closeBtn.addEventListener('click', closeSitInModal);
+            cancelBtn.addEventListener('click', closeSitInModal);
+            
+            // Close modal when clicking outside
+            window.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeSitInModal();
+                }
+            });
+            
+            // Show/hide other purpose input based on selection
+            purposeSelect.addEventListener('change', function() {
+                if (this.value === 'Others') {
+                    othersContainer.classList.remove('hidden');
+                } else {
+                    othersContainer.classList.add('hidden');
+                }
+            });
+            
+            function openSitInModal(studentId, studentName) {
+                document.getElementById('student_id').value = studentId;
+                document.getElementById('student_name').value = studentName;
+                modal.classList.add('show');
+                document.body.style.overflow = 'hidden'; // Prevent scrolling behind modal
+            }
+            
+            function closeSitInModal() {
+                modal.classList.remove('show');
+                document.body.style.overflow = ''; // Re-enable scrolling
+                // Reset form
+                document.getElementById('sitInForm').reset();
+                othersContainer.classList.add('hidden');
+            }
+
+            // Add auto-hide for alert messages after 5 seconds
+            const alerts = document.querySelectorAll('.alert');
+            if (alerts.length > 0) {
+                setTimeout(function() {
+                    alerts.forEach(alert => {
+                        alert.style.opacity = '0';
+                        alert.style.transition = 'opacity 1s ease';
+                        setTimeout(() => {
+                            alert.remove();
+                        }, 1000);
+                    });
+                }, 5000);
             }
         });
     </script>
