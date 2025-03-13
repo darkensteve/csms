@@ -173,6 +173,7 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -237,17 +238,19 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
 </head>
 <body class="font-sans h-screen flex flex-col">
     <!-- Success/Error Notifications -->
-    <?php if (!empty($success_message)): ?>
-    <div class="notification success" id="successNotification">
-        <i class="fas fa-check-circle mr-2"></i> <?php echo $success_message; ?>
+    <div id="notificationContainer">
+        <?php if (!empty($success_message)): ?>
+        <div class="notification success" id="successNotification">
+            <i class="fas fa-check-circle mr-2"></i> <?php echo $success_message; ?>
+        </div>
+        <?php endif; ?>
+        
+        <?php if (!empty($error_message)): ?>
+        <div class="notification error" id="errorNotification">
+            <i class="fas fa-exclamation-circle mr-2"></i> <?php echo $error_message; ?>
+        </div>
+        <?php endif; ?>
     </div>
-    <?php endif; ?>
-    
-    <?php if (!empty($error_message)): ?>
-    <div class="notification error" id="errorNotification">
-        <i class="fas fa-exclamation-circle mr-2"></i> <?php echo $error_message; ?>
-    </div>
-    <?php endif; ?>
 
     <!-- Navigation Bar -->
     <header class="bg-primary-700 text-white shadow-lg">
@@ -415,6 +418,24 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                     </div>
                     <?php endif; ?>
                     
+                    <?php if ($highlight_user_id && count($sit_ins) > 0): ?>
+                    <div class="bg-amber-50 border-l-4 border-amber-400 p-4 rounded mb-4">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-exclamation-circle text-amber-500"></i>
+                            </div>
+                            <div class="ml-3 flex-grow">
+                                <p class="text-sm font-medium text-amber-800">
+                                    Student <strong><?php echo htmlspecialchars($student_name); ?></strong> is currently sitting in.
+                                </p>
+                                <p class="text-xs text-amber-700 mt-1">
+                                    This student already has an active sit-in session and cannot register for another one until they time out.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
                     <?php 
                     // If redirected from a search with new sit-in, show a message
                     if ($highlight_sitin_id && !empty($success_message)): ?>
@@ -432,134 +453,137 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                     </div>
                     <?php endif; ?>
                     
-                    <?php if (count($sit_ins) > 0): ?>
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purpose</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sit Lab</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining Session</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in Time</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Time</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    <?php foreach ($sit_ins as $sit_in): ?>
-                                        <tr class="hover:bg-gray-50 <?php echo ($highlight_sitin_id && $sit_in['id'] == $highlight_sitin_id) ? 'highlighted-row' : ''; ?>">
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?php echo htmlspecialchars($sit_in['user_id'] ?? 'N/A'); ?></td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($sit_in['user_name'] ?? 'Unknown'); ?></td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($sit_in['purpose'] ?? 'N/A'); ?></td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($sit_in['lab_name'] ?? 'N/A'); ?></td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                <?php 
-                                                    // Fetch remaining sessions from users table
-                                                    $remaining_sessions = 0;
-                                                    $user_query = "SELECT remaining_sessions FROM users WHERE idNo = ?";
-                                                    $user_stmt = $conn->prepare($user_query);
-                                                    if ($user_stmt) {
-                                                        $user_stmt->bind_param("s", $sit_in['user_id']);
-                                                        $user_stmt->execute();
-                                                        $user_result = $user_stmt->get_result();
-                                                        if ($user_result->num_rows > 0) {
-                                                            $user_data = $user_result->fetch_assoc();
-                                                            $remaining_sessions = $user_data['remaining_sessions'] ?? 0;
-                                                        }
-                                                        $user_stmt->close();
-                                                    }
-                                                    echo $remaining_sessions;
-                                                ?>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                <?php echo date('M d, Y h:i A', strtotime($sit_in['start_time'])); ?>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                <?php 
-                                                if (isset($sit_in['check_out_time']) && $sit_in['check_out_time'] !== null) {
-                                                    echo date('M d, Y h:i A', strtotime($sit_in['check_out_time']));
-                                                } else {
-                                                    echo '';
-                                                }
-                                                ?>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                                <?php 
-                                                $now = new DateTime('now', new DateTimeZone('Asia/Manila'));
-                                                $end = new DateTime($sit_in['end_time'], new DateTimeZone('Asia/Manila'));
-                                                
-                                                if ($sit_in['status'] == 'active') {
-                                                    echo '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>';
-                                                } else {
-                                                    echo '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Inactive</span>';
-                                                }
-                                                ?>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                                <?php if ($is_admin || (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $sit_in['user_id'])): ?>
-                                                    <div class="flex space-x-4">
-                                                        <a href="edit_sitin.php?id=<?php echo $sit_in['id']; ?>" class="text-indigo-600 hover:text-indigo-900" title="Edit Sit-in">
-                                                            <i class="fas fa-edit text-lg"></i>
-                                                        </a>
-                                                        <a href="timeout_sitin.php?id=<?php echo $sit_in['id']; ?>" 
-                                                        class="text-red-600 hover:text-red-900" title="Time Out Student"
-                                                        onclick="return confirm('Are you sure you want to time out this student? This will mark their status as inactive.')">
-                                                            <i class="fas fa-sign-out-alt text-lg"></i>
-                                                        </a>
-                                                        <?php if ($is_admin && $remaining_sessions < 30): ?>
-                                                        <a href="reset_sessions.php?student_id=<?php echo urlencode($sit_in['user_id']); ?>&redirect=current_sitin.php" 
-                                                        class="text-green-600 hover:text-green-900" title="Reset Sessions to 30"
-                                                        onclick="return confirm('Are you sure you want to reset this student\'s sessions to 30?')">
-                                                            <i class="fas fa-sync-alt text-lg"></i>
-                                                        </a>
-                                                        <?php elseif ($is_admin): ?>
-                                                        <span class="text-gray-400 cursor-not-allowed" title="Student already has 30 sessions">
-                                                            <i class="fas fa-sync-alt text-lg"></i>
-                                                        </span>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                <?php endif; ?>
-                                            </td>
+                    <div id="sitinTableContainer">
+                        <?php if (count($sit_ins) > 0): ?>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200" id="sitinsTable">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purpose</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sit Lab</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining Session</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in Time</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Time</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                         </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php else: ?>
-                        <div class="text-center py-8">
-                            <?php if ($highlight_user_id): ?>
-                                <div class="text-gray-400 text-5xl mb-4">
-                                    <i class="fas fa-user-slash"></i>
-                                </div>
-                                <h3 class="text-lg font-medium text-gray-900 mb-2">No active sit-ins for this student</h3>
-                                <p class="text-gray-500 mb-6">The selected student is not currently sitting in</p>
-                            <?php elseif (!empty($search_term)): ?>
-                                <div class="text-gray-400 text-5xl mb-4">
-                                    <i class="fas fa-search"></i>
-                                </div>
-                                <h3 class="text-lg font-medium text-gray-900 mb-2">No matching sit-ins found</h3>
-                                <p class="text-gray-500 mb-6">No students matching "<?php echo htmlspecialchars($search_term); ?>" are currently sitting in</p>
-                                <a href="current_sitin.php" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors mb-3 inline-block">
-                                    <i class="fas fa-times-circle mr-2"></i> Clear Search
-                                </a>
-                                <a href="sitin_register.php" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors inline-block">
-                                    <i class="fas fa-plus mr-2"></i> Register New Sit-In
-                                </a>
-                            <?php else: ?>
-                                <div class="text-gray-400 text-5xl mb-4">
-                                    <i class="fas fa-mug-hot"></i>
-                                </div>
-                                <h3 class="text-lg font-medium text-gray-900 mb-2">No active sit-ins at the moment</h3>
-                                <p class="text-gray-500 mb-6">Create a new sit-in to get started</p>
-                                <a href="sitin_register.php" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors">
-                                    <i class="fas fa-plus mr-2"></i> Register New Sit-In
-                                </a>
-                            <?php endif; ?>
-                        </div>
-                    <?php endif; ?>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        <?php foreach ($sit_ins as $sit_in): ?>
+                                            <tr class="hover:bg-gray-50 <?php echo ($highlight_sitin_id && $sit_in['id'] == $highlight_sitin_id) ? 'highlighted-row' : ''; ?>" id="sitin-row-<?php echo $sit_in['id']; ?>">
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?php echo htmlspecialchars($sit_in['user_id'] ?? 'N/A'); ?></td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($sit_in['user_name'] ?? 'Unknown'); ?></td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($sit_in['purpose'] ?? 'N/A'); ?></td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($sit_in['lab_name'] ?? 'N/A'); ?></td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    <?php 
+                                                        // Fetch remaining sessions from users table
+                                                        $remaining_sessions = 0;
+                                                        $user_query = "SELECT remaining_sessions FROM users WHERE idNo = ?";
+                                                        $user_stmt = $conn->prepare($user_query);
+                                                        if ($user_stmt) {
+                                                            $user_stmt->bind_param("s", $sit_in['user_id']);
+                                                            $user_stmt->execute();
+                                                            $user_result = $user_stmt->get_result();
+                                                            if ($user_result->num_rows > 0) {
+                                                                $user_data = $user_result->fetch_assoc();
+                                                                $remaining_sessions = $user_data['remaining_sessions'] ?? 0;
+                                                            }
+                                                            $user_stmt->close();
+                                                        }
+                                                        echo $remaining_sessions;
+                                                    ?>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    <?php echo date('M d, Y h:i A', strtotime($sit_in['start_time'])); ?>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                    <?php 
+                                                    if (isset($sit_in['check_out_time']) && $sit_in['check_out_time'] !== null) {
+                                                        echo date('M d, Y h:i A', strtotime($sit_in['check_out_time']));
+                                                    } else {
+                                                        echo '';
+                                                    }
+                                                    ?>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                                    <?php 
+                                                    $now = new DateTime('now', new DateTimeZone('Asia/Manila'));
+                                                    $end = new DateTime($sit_in['end_time'], new DateTimeZone('Asia/Manila'));
+                                                    
+                                                    if ($sit_in['status'] == 'active') {
+                                                        echo '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>';
+                                                    } else {
+                                                        echo '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Inactive</span>';
+                                                    }
+                                                    ?>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                    <?php if ($is_admin || (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $sit_in['user_id'])): ?>
+                                                        <div class="flex space-x-4">
+                                                            <a href="edit_sitin.php?id=<?php echo $sit_in['id']; ?>" class="text-indigo-600 hover:text-indigo-900" title="Edit Sit-in">
+                                                                <i class="fas fa-edit text-lg"></i>
+                                                            </a>
+                                                            <button type="button" 
+                                                                class="text-red-600 hover:text-red-900 timeout-btn" 
+                                                                title="Time Out Student"
+                                                                data-sitin-id="<?php echo $sit_in['id']; ?>">
+                                                                <i class="fas fa-sign-out-alt text-lg"></i>
+                                                            </button>
+                                                            <?php if ($is_admin && $remaining_sessions < 30): ?>
+                                                            <a href="reset_sessions.php?student_id=<?php echo urlencode($sit_in['user_id']); ?>&redirect=current_sitin.php" 
+                                                            class="text-green-600 hover:text-green-900" title="Reset Sessions to 30"
+                                                            onclick="return confirm('Are you sure you want to reset this student\'s sessions to 30?')">
+                                                                <i class="fas fa-sync-alt text-lg"></i>
+                                                            </a>
+                                                            <?php elseif ($is_admin): ?>
+                                                            <span class="text-gray-400 cursor-not-allowed" title="Student already has 30 sessions">
+                                                                <i class="fas fa-sync-alt text-lg"></i>
+                                                            </span>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php else: ?>
+                            <div class="text-center py-8">
+                                <?php if ($highlight_user_id): ?>
+                                    <div class="text-gray-400 text-5xl mb-4">
+                                        <i class="fas fa-user-slash"></i>
+                                    </div>
+                                    <h3 class="text-lg font-medium text-gray-900 mb-2">No active sit-ins for this student</h3>
+                                    <p class="text-gray-500 mb-6">The selected student is not currently sitting in</p>
+                                <?php elseif (!empty($search_term)): ?>
+                                    <div class="text-gray-400 text-5xl mb-4">
+                                        <i class="fas fa-search"></i>
+                                    </div>
+                                    <h3 class="text-lg font-medium text-gray-900 mb-2">No matching sit-ins found</h3>
+                                    <p class="text-gray-500 mb-6">No students matching "<?php echo htmlspecialchars($search_term); ?>" are currently sitting in</p>
+                                    <a href="current_sitin.php" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors mb-3 inline-block">
+                                        <i class="fas fa-times-circle mr-2"></i> Clear Search
+                                    </a>
+                                    <a href="sitin_register.php" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors inline-block">
+                                        <i class="fas fa-plus mr-2"></i> Register New Sit-In
+                                    </a>
+                                <?php else: ?>
+                                    <div class="text-gray-400 text-5xl mb-4">
+                                        <i class="fas fa-mug-hot"></i>
+                                    </div>
+                                    <h3 class="text-lg font-medium text-gray-900 mb-2">No active sit-ins at the moment</h3>
+                                    <p class="text-gray-500 mb-6">Create a new sit-in to get started</p>
+                                    <a href="sitin_register.php" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors">
+                                        <i class="fas fa-plus mr-2"></i> Register New Sit-In
+                                    </a>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
         </div>
@@ -618,6 +642,88 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                 highlightedRow.scrollIntoView({
                     behavior: 'smooth',
                     block: 'center'
+                });
+            }
+        });
+
+        // Handle timeout button click
+        $(document).on('click', '.timeout-btn', function() {
+            const sitinId = $(this).data('sitin-id');
+            if (confirm('Are you sure you want to time out this student? This will mark their status as inactive.')) {
+                $.ajax({
+                    url: 'timeout_sitin.php',
+                    type: 'POST',
+                    data: { id: sitinId },
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.success) {
+                            // Remove only the specific row
+                            $('#sitin-row-' + sitinId).fadeOut(300, function() {
+                                $(this).remove();
+                                
+                                // Check if there are no more rows
+                                if ($('#sitinsTable tbody tr').length === 0) {
+                                    // Show the "no sit-ins" message
+                                    $('#sitinTableContainer').html(`
+                                        <div class="text-center py-8">
+                                            <div class="text-gray-400 text-5xl mb-4">
+                                                <i class="fas fa-mug-hot"></i>
+                                            </div>
+                                            <h3 class="text-lg font-medium text-gray-900 mb-2">No active sit-ins at the moment</h3>
+                                            <p class="text-gray-500 mb-6">Create a new sit-in to get started</p>
+                                            <a href="sitin_register.php" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors">
+                                                <i class="fas fa-plus mr-2"></i> Register New Sit-In
+                                            </a>
+                                        </div>
+                                    `);
+                                }
+                            });
+                            
+                            // Show success notification
+                            $('#notificationContainer').append(`
+                                <div class="notification success">
+                                    <i class="fas fa-check-circle mr-2"></i> ${response.message}
+                                </div>
+                            `);
+                        } else {
+                            // Show error notification
+                            $('#notificationContainer').append(`
+                                <div class="notification error">
+                                    <i class="fas fa-exclamation-circle mr-2"></i> ${response.message}
+                                </div>
+                            `);
+                        }
+                        
+                        // Auto hide notifications after 5 seconds
+                        const $notification = $('.notification').last();
+                        setTimeout(() => {
+                            $notification.css('opacity', '0');
+                            $notification.css('transition', 'opacity 0.5s ease-out');
+                            setTimeout(() => {
+                                $notification.remove();
+                            }, 500);
+                        }, 5000);
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("AJAX Error:", status, error);
+                        
+                        // Show error notification
+                        $('#notificationContainer').append(`
+                            <div class="notification error">
+                                <i class="fas fa-exclamation-circle mr-2"></i> An error occurred while timing out the student.
+                            </div>
+                        `);
+                        
+                        // Auto hide notifications after 5 seconds
+                        const $notification = $('.notification').last();
+                        setTimeout(() => {
+                            $notification.css('opacity', '0');
+                            $notification.css('transition', 'opacity 0.5s ease-out');
+                            setTimeout(() => {
+                                $notification.remove();
+                            }, 500);
+                        }, 5000);
+                    }
                 });
             }
         });

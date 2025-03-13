@@ -20,6 +20,21 @@ $debug_info = '';
 $sql_query = '';
 $error_message = ''; // Added for error handling
 
+// Add a new function to check if a student is already in an active sit-in session
+function checkActiveSession($conn, $student_id) {
+    $query = "SELECT COUNT(*) as count FROM sit_in_sessions WHERE student_id = ? AND status = 'active'";
+    $stmt = $conn->prepare($query);
+    if ($stmt) {
+        $stmt->bind_param("s", $student_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        $stmt->close();
+        return $row['count'] > 0;
+    }
+    return false;
+}
+
 // Direct database structure check - only run in debug mode
 if ($debug_mode) {
     $tables_in_db = [];
@@ -636,6 +651,13 @@ if (empty($labs)) {
                            class="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
                 </div>
                 
+                <!-- Add Remaining Session field -->
+                <div>
+                    <label for="remaining_session" class="block text-sm font-medium text-gray-700">Remaining Session</label>
+                    <input type="text" id="remaining_session" name="remaining_session" readonly
+                           class="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+                </div>
+                
                 <!-- Add redirect parameter to indicate we want to go to current_sitin.php -->
                 <input type="hidden" name="redirect_to_current" value="1">
                 
@@ -684,6 +706,38 @@ if (empty($labs)) {
         </div>
     </div>
     
+    <!-- Already Sitting In Warning Modal -->
+    <div id="alreadySittingInModal" class="modal">
+        <div class="modal-content p-6 mx-4">
+            <div class="mb-4 flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-red-600">Student Already Sitting In</h3>
+                <button class="closeWarningModal text-gray-400 hover:text-gray-500">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4 bg-red-50 border-l-4 border-red-400 text-red-700 mb-4">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm font-medium" id="warningStudentName">
+                            This student already has an active sit-in session.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4 flex space-x-2">
+                <a id="viewActiveSessionBtn" href="#" class="flex-1 px-4 py-2 bg-primary-600 text-white text-center rounded-md hover:bg-primary-700 transition">
+                    <i class="fas fa-eye mr-2"></i> View Active Session
+                </a>
+                <button class="closeWarningModal flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <footer class="bg-white border-t border-gray-200 py-3">
         <div class="container mx-auto px-4 text-center text-gray-500 text-sm">
             &copy; 2024 SitIn System - Admin Dashboard. All rights reserved.
@@ -718,8 +772,10 @@ if (empty($labs)) {
         // Sit-In Modal Functionality
         document.addEventListener('DOMContentLoaded', function() {
             const modal = document.getElementById('sitInModal');
+            const warningModal = document.getElementById('alreadySittingInModal');
             const closeBtn = document.getElementById('closeModal');
             const cancelBtn = document.getElementById('cancelSitIn');
+            const warningCloseBtns = document.querySelectorAll('.closeWarningModal');
             const purposeSelect = document.getElementById('purpose');
             const othersContainer = document.getElementById('othersContainer');
             
@@ -728,7 +784,7 @@ if (empty($labs)) {
                 row.addEventListener('click', function(e) {
                     // Prevent triggering when clicking on the button column
                     if (!e.target.closest('.sit-in-btn')) {
-                        openSitInModal(this.dataset.studentId, this.dataset.studentName);
+                        checkAndOpenModal(this.dataset.studentId, this.dataset.studentName);
                     }
                 });
             });
@@ -737,9 +793,66 @@ if (empty($labs)) {
             document.querySelectorAll('.sit-in-btn').forEach(button => {
                 button.addEventListener('click', function(e) {
                     e.stopPropagation();
-                    openSitInModal(this.dataset.studentId, this.dataset.studentName);
+                    checkAndOpenModal(this.dataset.studentId, this.dataset.studentName);
                 });
             });
+            
+            // Function to check if student is already sitting in
+            function checkAndOpenModal(studentId, studentName) {
+                // First check if student already has an active sit-in session
+                fetch('check_active_session.php?student_id=' + encodeURIComponent(studentId))
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.has_active_session) {
+                            // Show warning modal
+                            document.getElementById('warningStudentName').textContent = 
+                                studentName + " already has an active sit-in session.";
+                            document.getElementById('viewActiveSessionBtn').href = 
+                                'current_sitin.php?search=' + encodeURIComponent(studentId);
+                            warningModal.classList.add('show');
+                        } else {
+                            // Proceed with opening sit-in modal
+                            openSitInModal(studentId, studentName);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking active session:', error);
+                        // If error, allow sit-in to be safe
+                        openSitInModal(studentId, studentName);
+                    });
+            }
+            
+            // Close warning modal
+            warningCloseBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    warningModal.classList.remove('show');
+                });
+            });
+            
+            // ...existing openSitInModal function and other code...
+            
+            function openSitInModal(studentId, studentName) {
+                document.getElementById('student_id').value = studentId;
+                document.getElementById('student_name').value = studentName;
+                
+                // Fetch remaining sessions for this student using AJAX
+                fetch('get_remaining_sessions.php?student_id=' + encodeURIComponent(studentId))
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('remaining_session').value = data.remaining_sessions;
+                        } else {
+                            document.getElementById('remaining_session').value = "Not available";
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching remaining sessions:', error);
+                        document.getElementById('remaining_session').value = "Error loading data";
+                    });
+                
+                modal.classList.add('show');
+                document.body.style.overflow = 'hidden'; // Prevent scrolling behind modal
+            }
             
             // Close modal functions
             closeBtn.addEventListener('click', closeSitInModal);
@@ -760,14 +873,6 @@ if (empty($labs)) {
                     othersContainer.classList.add('hidden');
                 }
             });
-            
-            function openSitInModal(studentId, studentName) {
-                document.getElementById('student_id').value = studentId;
-                document.getElementById('student_name').value = studentName;
-                
-                modal.classList.add('show');
-                document.body.style.overflow = 'hidden'; // Prevent scrolling behind modal
-            }
             
             function closeSitInModal() {
                 modal.classList.remove('show');
