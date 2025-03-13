@@ -1,4 +1,7 @@
 <?php
+// Set timezone to Philippine time
+date_default_timezone_set('Asia/Manila');
+
 // Include database connection
 require_once 'includes/db_connect.php';
 session_start();
@@ -485,12 +488,13 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                                 <?php 
-                                                $now = new DateTime();
-                                                $end = new DateTime($sit_in['end_time']);
-                                                if ($now < $end) {
+                                                $now = new DateTime('now', new DateTimeZone('Asia/Manila'));
+                                                $end = new DateTime($sit_in['end_time'], new DateTimeZone('Asia/Manila'));
+                                                
+                                                if ($sit_in['status'] == 'active') {
                                                     echo '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>';
                                                 } else {
-                                                    echo '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Expired</span>';
+                                                    echo '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Inactive</span>';
                                                 }
                                                 ?>
                                             </td>
@@ -500,10 +504,10 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                                                         <a href="edit_sitin.php?id=<?php echo $sit_in['id']; ?>" class="text-indigo-600 hover:text-indigo-900" title="Edit Sit-in">
                                                             <i class="fas fa-edit text-lg"></i>
                                                         </a>
-                                                        <a href="cancel_sitin.php?id=<?php echo $sit_in['id']; ?>" 
-                                                        class="text-red-600 hover:text-red-900" title="Cancel Sit-in"
-                                                        onclick="return confirm('Are you sure you want to cancel this sit-in?')">
-                                                            <i class="fas fa-times-circle text-lg"></i>
+                                                        <a href="timeout_sitin.php?id=<?php echo $sit_in['id']; ?>" 
+                                                        class="text-red-600 hover:text-red-900" title="Time Out Student"
+                                                        onclick="return confirm('Are you sure you want to time out this student? This will mark their status as inactive.')">
+                                                            <i class="fas fa-sign-out-alt text-lg"></i>
                                                         </a>
                                                         <?php if ($is_admin && $remaining_sessions < 30): ?>
                                                         <a href="reset_sessions.php?student_id=<?php echo urlencode($sit_in['user_id']); ?>&redirect=current_sitin.php" 

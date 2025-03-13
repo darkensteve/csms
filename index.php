@@ -25,14 +25,24 @@ if (isset($_POST['login'])) {
         // Fetch the user data
         $user = $result->fetch_assoc();
         
-        // Verify password (assuming passwords are stored with password_hash)
-        // If not using password_hash yet, replace with your current password check
-        if ($user['password'] === $password) {  // Replace this with password_verify when implemented
-            // Set the session variables
+        // Check if passwords are stored using password_hash
+        if (password_verify($password, $user['password'])) {
+            // If using password_hash, use this code
             $_SESSION['id'] = $user['user_id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['login_time'] = time();
-            $_SESSION['login_success'] = true; // Add this line
+            $_SESSION['login_success'] = true;
+            
+            // Redirect to the dashboard with a success message
+            header("Location: dashboard.php?message=login");
+            exit;
+        } elseif ($user['password'] === $password) {
+            // TEMPORARY FALLBACK: Direct comparison (less secure)
+            // This should be removed once all passwords are properly hashed
+            $_SESSION['id'] = $user['user_id'];
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['login_time'] = time();
+            $_SESSION['login_success'] = true;
             
             // Redirect to the dashboard with a success message
             header("Location: dashboard.php?message=login");

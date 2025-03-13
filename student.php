@@ -205,6 +205,11 @@ $success_message = '';
 if (isset($_GET['deleted']) && $_GET['deleted'] == '1') {
     $success_message = "Student record successfully deleted.";
 }
+
+// Add success message for record updates
+if (isset($_GET['updated']) && $_GET['updated'] == '1') {
+    $success_message = "Student record successfully updated.";
+}
 ?>
 
 <!DOCTYPE html>

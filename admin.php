@@ -713,17 +713,17 @@ if ($result) {
             // Year Level Distribution Chart
             const yearCtx = document.getElementById('studentYearChart').getContext('2d');
             
-            // Filter out any years with zero students
-            const yearLabels = [];
-            const yearData = [];
+            // Enhanced color palette with better visual harmony
             const yearColors = [
-                '#4f46e5', // indigo
-                '#2563eb', // blue
-                '#0891b2', // cyan
-                '#059669', // emerald
-                '#7c3aed'  // violet
+                'rgba(79, 70, 229, 0.85)',   // indigo with transparency
+                'rgba(37, 99, 235, 0.85)',   // blue with transparency
+                'rgba(8, 145, 178, 0.85)',   // cyan with transparency
+                'rgba(5, 150, 105, 0.85)',   // emerald with transparency
+                'rgba(124, 58, 237, 0.85)'   // violet with transparency
             ];
             
+            const yearLabels = [];
+            const yearData = [];
             let colorIndex = 0;
             const yearColorsUsed = [];
             
@@ -735,27 +735,50 @@ if ($result) {
             <?php endforeach; ?>
             
             new Chart(yearCtx, {
-                type: 'pie',
+                type: 'doughnut', // Changed to doughnut for modern look
                 data: {
                     labels: yearLabels,
                     datasets: [{
                         data: yearData,
                         backgroundColor: yearColorsUsed,
-                        borderWidth: 1
+                        borderWidth: 2,
+                        borderColor: '#ffffff',
+                        hoverBorderWidth: 4,
+                        hoverBackgroundColor: yearColorsUsed.map(color => color.replace('0.85', '1')),
+                        hoverOffset: 5
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    cutout: '65%', // Doughnut hole size
                     plugins: {
                         legend: {
                             position: 'bottom',
                             labels: {
-                                boxWidth: 10,
-                                font: { size: 10 }
+                                padding: 15,
+                                boxWidth: 12,
+                                font: { 
+                                    size: 11,
+                                    family: 'Inter'
+                                },
+                                usePointStyle: true,
+                                pointStyle: 'circle'
                             }
                         },
                         tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: {
+                                size: 13,
+                                family: 'Inter',
+                                weight: '600'
+                            },
+                            bodyFont: {
+                                family: 'Inter',
+                                size: 12
+                            },
+                            cornerRadius: 6,
                             callbacks: {
                                 label: function(context) {
                                     const label = context.label || '';
@@ -766,6 +789,12 @@ if ($result) {
                                 }
                             }
                         }
+                    },
+                    animation: {
+                        animateRotate: true,
+                        animateScale: true,
+                        duration: 1000,
+                        easing: 'easeOutQuart'
                     }
                 }
             });
@@ -773,18 +802,18 @@ if ($result) {
             // Sit-In Purpose Distribution Chart
             const purposeCtx = document.getElementById('sitinPurposeChart').getContext('2d');
             
-            // Filter out any purposes with zero sit-ins
-            const purposeLabels = [];
-            const purposeData = [];
+            // Enhanced color palette for purpose chart
             const purposeColors = [
-                '#3b82f6', // blue
-                '#10b981', // emerald
-                '#f59e0b', // amber
-                '#ef4444', // red
-                '#8b5cf6'  // violet
+                'rgba(59, 130, 246, 0.85)',  // blue with transparency
+                'rgba(16, 185, 129, 0.85)',  // emerald with transparency
+                'rgba(245, 158, 11, 0.85)',  // amber with transparency
+                'rgba(239, 68, 68, 0.85)',   // red with transparency
+                'rgba(139, 92, 246, 0.85)'   // violet with transparency
             ];
             
             let purposeColorIndex = 0;
+            const purposeLabels = [];
+            const purposeData = [];
             const purposeColorsUsed = [];
             
             <?php foreach ($purpose_distribution as $purpose => $count): ?>
@@ -795,27 +824,50 @@ if ($result) {
             <?php endforeach; ?>
             
             new Chart(purposeCtx, {
-                type: 'pie',
+                type: 'doughnut',
                 data: {
                     labels: purposeLabels,
                     datasets: [{
                         data: purposeData,
                         backgroundColor: purposeColorsUsed,
-                        borderWidth: 1
+                        borderWidth: 2,
+                        borderColor: '#ffffff',
+                        hoverBorderWidth: 4,
+                        hoverBackgroundColor: purposeColorsUsed.map(color => color.replace('0.85', '1')),
+                        hoverOffset: 5
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    cutout: '65%',
                     plugins: {
                         legend: {
                             position: 'bottom',
                             labels: {
-                                boxWidth: 10,
-                                font: { size: 10 }
+                                padding: 15,
+                                boxWidth: 12,
+                                font: { 
+                                    size: 11,
+                                    family: 'Inter'
+                                },
+                                usePointStyle: true,
+                                pointStyle: 'circle'
                             }
                         },
                         tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: {
+                                size: 13,
+                                family: 'Inter',
+                                weight: '600'
+                            },
+                            bodyFont: {
+                                family: 'Inter',
+                                size: 12
+                            },
+                            cornerRadius: 6,
                             callbacks: {
                                 label: function(context) {
                                     const label = context.label || '';
@@ -826,18 +878,50 @@ if ($result) {
                                 }
                             }
                         }
+                    },
+                    animation: {
+                        animateRotate: true,
+                        animateScale: true,
+                        duration: 1000,
+                        easing: 'easeOutQuart'
                     }
                 }
             });
+            
+            // Add subtle animations for cards and UI elements
+            document.querySelectorAll('.card, .bg-white.rounded-xl').forEach(card => {
+                card.classList.add('transition-all', 'duration-300', 'hover:shadow-lg');
+            });
+            
+            // Add hover effects to buttons and interactive elements
+            document.querySelectorAll('button:not([disabled]), a.px-3.py-2, a.px-4.py-2').forEach(button => {
+                button.classList.add('transition-colors', 'duration-200');
+            });
+            
+            // Enhance form inputs
+            document.querySelectorAll('input, textarea').forEach(input => {
+                input.addEventListener('focus', function() {
+                    this.parentElement.classList.add('ring-2', 'ring-primary-100', 'ring-opacity-50');
+                });
+                input.addEventListener('blur', function() {
+                    this.parentElement.classList.remove('ring-2', 'ring-primary-100', 'ring-opacity-50');
+                });
+            });
         });
         
-        // Auto hide notifications after 5 seconds
+        // Auto hide notifications with smooth transition
         document.addEventListener('DOMContentLoaded', function() {
             const notifications = document.querySelectorAll('.notification');
             
             notifications.forEach(notification => {
+                notification.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+                
+                // Slight animation on load
+                notification.style.transform = 'translateY(0)';
+                
                 setTimeout(() => {
                     notification.style.opacity = '0';
+                    notification.style.transform = 'translateY(-10px)';
                     setTimeout(() => {
                         notification.style.display = 'none';
                     }, 500);
