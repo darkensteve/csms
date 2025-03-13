@@ -532,6 +532,18 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
                                                onclick="return confirm('Are you sure you want to delete this student record?')">
                                                 <i class="fas fa-trash"></i>
                                             </a>
+                                            <?php if ((int)$student['remaining_sessions'] < 30): ?>
+                                            <a href="reset_sessions.php?student_id=<?php echo urlencode($student[$id_column]); ?>&redirect=student.php" 
+                                               class="text-green-600 hover:text-green-900 transition" 
+                                               title="Reset Sessions to 30"
+                                               onclick="return confirm('Are you sure you want to reset this student\'s sessions to 30?')">
+                                                <i class="fas fa-sync-alt"></i>
+                                            </a>
+                                            <?php elseif ((int)$student['remaining_sessions'] >= 30): ?>
+                                            <span class="text-gray-400 cursor-not-allowed" title="Student already has 30 sessions">
+                                                <i class="fas fa-sync-alt"></i>
+                                            </span>
+                                            <?php endif; ?>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>

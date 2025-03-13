@@ -4,6 +4,9 @@ date_default_timezone_set('Asia/Manila');
 
 // Include database connection
 require_once 'includes/db_connect.php';
+
+// Include datetime helper
+require_once 'includes/datetime_helper.php';
 session_start();
 
 // Check if user is logged in
@@ -109,6 +112,9 @@ $sit_ins = [];
 
 // Try to query current sit-ins
 try {
+    // Setup MySQL session to ensure times are interpreted correctly
+    $conn->query("SET time_zone = '+08:00'");
+    
     $query = "SELECT s.session_id as id, s.student_id as user_id, s.purpose, s.check_in_time as start_time, 
               IFNULL(s.check_out_time, DATE_ADD(s.check_in_time, INTERVAL 3 HOUR)) as end_time, 
               s.lab_id, s.student_name as user_name, s.status, l.lab_name,
@@ -465,7 +471,6 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sit Lab</th>
                                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining Session</th>
                                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in Time</th>
-                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Time</th>
                                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                         </tr>
@@ -479,34 +484,34 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($sit_in['lab_name'] ?? 'N/A'); ?></td>
                                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     <?php 
-                                                        // Fetch remaining sessions from users table
+                                                        // Simple approach to get remaining sessions with error handling
                                                         $remaining_sessions = 0;
-                                                        $user_query = "SELECT remaining_sessions FROM users WHERE idNo = ?";
-                                                        $user_stmt = $conn->prepare($user_query);
-                                                        if ($user_stmt) {
-                                                            $user_stmt->bind_param("s", $sit_in['user_id']);
-                                                            $user_stmt->execute();
-                                                            $user_result = $user_stmt->get_result();
-                                                            if ($user_result->num_rows > 0) {
-                                                                $user_data = $user_result->fetch_assoc();
-                                                                $remaining_sessions = $user_data['remaining_sessions'] ?? 0;
+                                                        
+                                                        try {
+                                                            // Try with idNo first (most common column name)
+                                                            $user_query = "SELECT remaining_sessions FROM users WHERE idNo = ?";
+                                                            $user_stmt = $conn->prepare($user_query);
+                                                            
+                                                            if ($user_stmt) {
+                                                                $user_stmt->bind_param("s", $sit_in['user_id']);
+                                                                $user_stmt->execute();
+                                                                $user_result = $user_stmt->get_result();
+                                                                
+                                                                if ($user_result && $user_result->num_rows > 0) {
+                                                                    $user_data = $user_result->fetch_assoc();
+                                                                    $remaining_sessions = $user_data['remaining_sessions'] ?? 0;
+                                                                }
+                                                                $user_stmt->close();
                                                             }
-                                                            $user_stmt->close();
+                                                        } catch (Exception $e) {
+                                                            // Silently handle the error and keep default value
                                                         }
+                                                        
                                                         echo $remaining_sessions;
                                                     ?>
                                                 </td>
                                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    <?php echo date('M d, Y h:i A', strtotime($sit_in['start_time'])); ?>
-                                                </td>
-                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    <?php 
-                                                    if (isset($sit_in['check_out_time']) && $sit_in['check_out_time'] !== null) {
-                                                        echo date('M d, Y h:i A', strtotime($sit_in['check_out_time']));
-                                                    } else {
-                                                        echo '';
-                                                    }
-                                                    ?>
+                                                    <?php echo format_datetime($sit_in['start_time']); ?>
                                                 </td>
                                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                                                     <?php 
@@ -523,26 +528,12 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                     <?php if ($is_admin || (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $sit_in['user_id'])): ?>
                                                         <div class="flex space-x-4">
-                                                            <a href="edit_sitin.php?id=<?php echo $sit_in['id']; ?>" class="text-indigo-600 hover:text-indigo-900" title="Edit Sit-in">
-                                                                <i class="fas fa-edit text-lg"></i>
-                                                            </a>
                                                             <button type="button" 
                                                                 class="text-red-600 hover:text-red-900 timeout-btn" 
                                                                 title="Time Out Student"
                                                                 data-sitin-id="<?php echo $sit_in['id']; ?>">
                                                                 <i class="fas fa-sign-out-alt text-lg"></i>
                                                             </button>
-                                                            <?php if ($is_admin && $remaining_sessions < 30): ?>
-                                                            <a href="reset_sessions.php?student_id=<?php echo urlencode($sit_in['user_id']); ?>&redirect=current_sitin.php" 
-                                                            class="text-green-600 hover:text-green-900" title="Reset Sessions to 30"
-                                                            onclick="return confirm('Are you sure you want to reset this student\'s sessions to 30?')">
-                                                                <i class="fas fa-sync-alt text-lg"></i>
-                                                            </a>
-                                                            <?php elseif ($is_admin): ?>
-                                                            <span class="text-gray-400 cursor-not-allowed" title="Student already has 30 sessions">
-                                                                <i class="fas fa-sync-alt text-lg"></i>
-                                                            </span>
-                                                            <?php endif; ?>
                                                         </div>
                                                     <?php endif; ?>
                                                 </td>

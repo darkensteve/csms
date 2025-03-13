@@ -7,6 +7,12 @@ if(!isset($_SESSION['admin_id']) || !$_SESSION['is_admin']) {
     exit;
 }
 
+// Set timezone to GMT+8 (Philippines/Manila)
+date_default_timezone_set('Asia/Manila');
+
+// Include datetime helper
+require_once 'includes/datetime_helper.php';
+
 // Database connection
 $db_host = "localhost";
 $db_user = "root";
@@ -19,6 +25,9 @@ if (!$conn) {
     die("Connection failed: " . mysqli_connect_error());
 }
 
+// Make sure timezone is set for MySQL connection
+$conn->query("SET time_zone = '+08:00'");
+
 // Get admin username for display
 $admin_username = $_SESSION['admin_username'];
 
@@ -26,6 +35,10 @@ $admin_username = $_SESSION['admin_username'];
 $search = isset($_GET['search']) ? $_GET['search'] : '';
 $status = isset($_GET['status']) ? $_GET['status'] : 'all';
 $sort = isset($_GET['sort']) ? $_GET['sort'] : 'date_desc';
+$date_filter = isset($_GET['date_filter']) ? $_GET['date_filter'] : 'today'; // Default to today's records
+
+// Get today's date in Y-m-d format for SQL comparison (using the set timezone)
+$today = date('Y-m-d');
 
 // Build the query based on the actual table structure
 $query = "SELECT s.*, 
@@ -37,6 +50,11 @@ $query = "SELECT s.*,
           FROM sit_in_sessions s 
           LEFT JOIN labs l ON s.lab_id = l.lab_id
           WHERE 1=1";
+
+// Apply date filter
+if ($date_filter === 'today') {
+    $query .= " AND DATE(s.check_in_time) = '$today'";
+}
 
 // Apply search filter
 if (!empty($search)) {
@@ -229,6 +247,13 @@ $result = mysqli_query($conn, $query);
                         </div>
                         
                         <div>
+                            <select name="date_filter" class="px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                <option value="today" <?php echo $date_filter === 'today' ? 'selected' : ''; ?>>Today's Records</option>
+                                <option value="all" <?php echo $date_filter === 'all' ? 'selected' : ''; ?>>All Records</option>
+                            </select>
+                        </div>
+                        
+                        <div>
                             <select name="status" class="px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary-500">
                                 <option value="all" <?php echo $status === 'all' ? 'selected' : ''; ?>>All Status</option>
                                 <option value="active" <?php echo $status === 'active' ? 'selected' : ''; ?>>Active</option>
@@ -259,18 +284,27 @@ $result = mysqli_query($conn, $query);
 
                 <!-- Records Table -->
                 <div class="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
+                    <div class="p-4 bg-gray-50 border-b border-gray-200">
+                        <h3 class="text-lg font-medium text-gray-700">
+                            <?php if ($date_filter === 'today'): ?>
+                                Current Sit-In Records
+                            <?php else: ?>
+                                All Sit-In Records
+                            <?php endif; ?>
+                        </h3>
+                    </div>
                     <div class="table-container">
                         <table class="min-w-full">
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time In</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time Out</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student ID</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Laboratory</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purpose</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider no-print">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
@@ -278,7 +312,19 @@ $result = mysqli_query($conn, $query);
                                     <?php while($row = mysqli_fetch_assoc($result)): ?>
                                         <tr class="hover:bg-gray-50">
                                             <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                                <?php echo date('M d, Y h:i A', strtotime($row['check_in_time'])); ?>
+                                                <?php echo format_date($row['check_in_time']); ?>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                                <?php echo format_time($row['check_in_time']); ?>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                                <?php 
+                                                if ($row['check_out_time']) {
+                                                    echo format_time($row['check_out_time']);
+                                                } else {
+                                                    echo '<span class="text-yellow-600">Pending</span>';
+                                                }
+                                                ?>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                                 <?php echo htmlspecialchars($row['student_id']); ?>
@@ -292,33 +338,17 @@ $result = mysqli_query($conn, $query);
                                             <td class="px-6 py-4 text-sm">
                                                 <?php echo htmlspecialchars($row['purpose']); ?>
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                                <?php
-                                                if ($row['check_out_time']) {
-                                                    $duration = strtotime($row['check_out_time']) - strtotime($row['check_in_time']);
-                                                    echo floor($duration / 3600) . 'h ' . floor(($duration % 3600) / 60) . 'm';
-                                                } else {
-                                                    echo 'Ongoing';
-                                                }
-                                                ?>
-                                            </td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                                    <?php echo $row['status'] === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'; ?>">
-                                                    <?php echo ucfirst($row['status']); ?>
+                                                    <?php echo $row['status'] === 'active' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'; ?>">
+                                                    <?php echo $row['status'] === 'active' ? 'Active' : 'Completed'; ?>
                                                 </span>
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 no-print">
-                                                <a href="view_sitin.php?id=<?php echo $row['session_id']; ?>" 
-                                                class="text-primary-600 hover:text-primary-900 mr-3">
-                                                    <i class="fas fa-eye"></i> View
-                                                </a>
                                             </td>
                                         </tr>
                                     <?php endwhile; ?>
                                 <?php else: ?>
                                     <tr>
-                                        <td colspan="8" class="px-6 py-4 text-center text-gray-500">
+                                        <td colspan="9" class="px-6 py-4 text-center text-gray-500">
                                             No sit-in records found.
                                         </td>
                                     </tr>

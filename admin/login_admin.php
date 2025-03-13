@@ -1,9 +1,10 @@
 <?php
 session_start();
-require_once 'config.php';
+require_once '../config.php';  // Make sure this path is correct
 
 // Check if already logged in
 if(isset($_SESSION['admin_id'])) {
+    // Use relative path to make sure we're targeting the file in the same directory
     header("Location: admin.php?message=loggedin");
     exit;
 }
@@ -42,6 +43,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $_SESSION['admin_username'] = $admin['username'];
                 $_SESSION['is_admin'] = true;
                 
+                // Use relative path to make sure we're targeting the file in the same directory
                 header("Location: admin.php?message=loggedin");
                 exit;
             } else {
@@ -167,7 +169,7 @@ $conn->close();
             </form>
             
             <div class="mt-8 text-center border-t border-gray-200 pt-6">
-                <a href="index.php" class="text-sm text-primary-500 hover:text-accent flex items-center justify-center gap-2 hover:underline transition duration-200">
+                <a href="../user/index.php" class="text-sm text-primary-500 hover:text-accent flex items-center justify-center gap-2 hover:underline transition duration-200">
                     <i class="fas fa-arrow-left"></i> Back to Main Site
                 </a>
             </div>

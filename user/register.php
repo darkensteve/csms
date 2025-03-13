@@ -94,8 +94,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <!-- Header -->
             <div class="text-center mb-6">
                 <div class="flex justify-center space-x-12 mb-4">
-                    <img src="uclogo.jpg" alt="UC Logo" class="w-12 h-12 object-contain filter drop-shadow transition duration-300 hover:scale-105">
-                    <img src="ccs.png" alt="CCS Logo" class="w-12 h-12 object-contain filter drop-shadow transition duration-300 hover:scale-105">
+                    <img src="../uclogo.jpg" alt="UC Logo" class="w-12 h-12 object-contain filter drop-shadow transition duration-300 hover:scale-105">
+                    <img src="../ccs.png" alt="CCS Logo" class="w-12 h-12 object-contain filter drop-shadow transition duration-300 hover:scale-105">
                 </div>
                 <h1 class="text-xl font-bold text-primary-800 tracking-wide uppercase">CCS SITIN Monitoring System</h1>
                 <p class="text-sm text-gray-500 mt-1">Create your account to get started</p>

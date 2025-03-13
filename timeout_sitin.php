@@ -1,109 +1,59 @@
 <?php
-// Set timezone to Philippine time
-date_default_timezone_set('Asia/Manila');
-
 // Include database connection
 require_once 'includes/db_connect.php';
 session_start();
 
-// Check if user is logged in
+// Check if user is logged in (either admin or regular user)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
-    // Return JSON response for AJAX requests
-    if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
-        echo json_encode(['success' => false, 'message' => 'Not authorized']);
-        exit;
-    }
-    // Regular redirect for direct access
-    header('Location: login.php');
+    echo json_encode(['success' => false, 'message' => 'Unauthorized access']);
     exit();
 }
 
-// Define response array (for AJAX)
-$response = [
-    'success' => false,
-    'message' => '',
-];
-
-// Check if this is an AJAX request
-$is_ajax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
-
-// Check for sit-in ID
-$sitin_id = isset($_POST['id']) ? intval($_POST['id']) : (isset($_GET['id']) ? intval($_GET['id']) : 0);
-
-if ($sitin_id <= 0) {
-    $response['message'] = 'Invalid sit-in ID';
-    
-    if ($is_ajax) {
-        echo json_encode($response);
-        exit;
-    } else {
-        $_SESSION['sitin_message'] = $response['message'];
-        $_SESSION['sitin_status'] = 'error';
-        header('Location: current_sitin.php');
-        exit();
-    }
+// Check if sit-in ID is provided
+if (!isset($_POST['id']) || empty($_POST['id'])) {
+    echo json_encode(['success' => false, 'message' => 'Sit-in ID is required']);
+    exit();
 }
 
-// Get current time for checkout
-$checkout_time = date('Y-m-d H:i:s');
+$sitin_id = intval($_POST['id']);
 
-// Update the sit-in session
-$query = "UPDATE sit_in_sessions SET status = 'inactive', check_out_time = ? WHERE session_id = ?";
-$stmt = $conn->prepare($query);
+// Get the current time in Philippine timezone
+date_default_timezone_set('Asia/Manila');
+$current_time = date('Y-m-d H:i:s');
 
-if ($stmt) {
-    $stmt->bind_param("si", $checkout_time, $sitin_id);
-    $result = $stmt->execute();
+// Start transaction
+$conn->begin_transaction();
+
+try {
+    // Update sit-in session status to inactive and set check_out_time
+    $update_query = "UPDATE sit_in_sessions SET status = 'inactive', check_out_time = ? WHERE session_id = ? AND status = 'active'";
+    $stmt = $conn->prepare($update_query);
+    $stmt->bind_param("si", $current_time, $sitin_id);
     
-    if ($result) {
-        // Get student ID for the message
-        $student_query = "SELECT student_id, student_name FROM sit_in_sessions WHERE session_id = ?";
-        $student_stmt = $conn->prepare($student_query);
-        $student_stmt->bind_param("i", $sitin_id);
-        $student_stmt->execute();
-        $student_result = $student_stmt->get_result();
-        $student_data = $student_result->fetch_assoc();
-        
-        // Decrement remaining sessions if applicable
-        if ($student_data) {
-            $student_id = $student_data['student_id'];
-            $student_name = $student_data['student_name'];
-            
-            // Update the user's remaining sessions
-            $update_query = "UPDATE users SET remaining_sessions = GREATEST(remaining_sessions - 1, 0) WHERE idNo = ?";
-            $update_stmt = $conn->prepare($update_query);
-            if ($update_stmt) {
-                $update_stmt->bind_param("s", $student_id);
-                $update_stmt->execute();
-                $update_stmt->close();
-            }
-            
-            $response['success'] = true;
-            $response['message'] = "Student " . htmlspecialchars($student_name) . " has been timed out successfully.";
+    if ($stmt->execute()) {
+        // Check if any rows were affected
+        if ($stmt->affected_rows > 0) {
+            // Commit transaction
+            $conn->commit();
+            echo json_encode(['success' => true, 'message' => 'Student has been timed out successfully']);
         } else {
-            $response['success'] = true;
-            $response['message'] = "Student has been timed out successfully.";
+            // No rows were affected, possibly already timed out
+            $conn->rollback();
+            echo json_encode(['success' => false, 'message' => 'Sit-in session not found or already timed out']);
         }
-        
-        $student_stmt->close();
     } else {
-        $response['message'] = "Error updating sit-in: " . $stmt->error;
+        // Error executing the query
+        $conn->rollback();
+        echo json_encode(['success' => false, 'message' => 'Error updating sit-in session: ' . $stmt->error]);
     }
     
     $stmt->close();
-} else {
-    $response['message'] = "Database error: " . $conn->error;
+} catch (Exception $e) {
+    // Handle exceptions
+    $conn->rollback();
+    echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
 }
 
-// Return JSON for AJAX requests
-if ($is_ajax) {
-    echo json_encode($response);
-    exit;
-}
-
-// For regular form submissions, set session message and redirect
-$_SESSION['sitin_message'] = $response['message'];
-$_SESSION['sitin_status'] = $response['success'] ? 'success' : 'error';
-header('Location: current_sitin.php');
-exit();
+// Close connection
+$conn->close();
 ?>

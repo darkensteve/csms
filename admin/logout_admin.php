@@ -16,7 +16,7 @@ if (ini_get("session.use_cookies")) {
 // Destroy the session
 session_destroy();
 
-// Redirect to admin login page
+// Redirect to admin login page - updated path
 header("Location: login_admin.php?message=logout");
 exit;
 ?>
