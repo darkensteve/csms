@@ -13,6 +13,21 @@ date_default_timezone_set('Asia/Manila');
 // Include datetime helper
 require_once 'includes/datetime_helper.php';
 
+// Include data sync helper for potential updates
+require_once 'includes/data_sync_helper.php';
+
+// Function to ensure times are formatted in GMT+8a/Asia timezone (GMT+8)
+function format_time_gmt8($datetime_string) {
+    if (empty($datetime_string)) return '';
+    
+    // Force conversion to Manila timezone regardless of stored format
+    $dt = new DateTime($datetime_string);
+    $dt->setTimezone(new DateTimeZone('Asia/Manila'));
+    
+    // Format time in 12-hour format with AM/PM in Manila local time
+    return $dt->format('h:i A');
+}
+
 // Database connection
 $db_host = "localhost";
 $db_user = "root";
@@ -32,7 +47,7 @@ $conn->query("SET time_zone = '+08:00'");
 $admin_username = $_SESSION['admin_username'];
 
 // Get filters from URL parameters
-$search = isset($_GET['search']) ? $_GET['search'] : '';
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $status = isset($_GET['status']) ? $_GET['status'] : 'all';
 $sort = isset($_GET['sort']) ? $_GET['sort'] : 'date_desc';
 $date_filter = isset($_GET['date_filter']) ? $_GET['date_filter'] : 'today'; // Default to today's records
@@ -51,7 +66,7 @@ $query = "SELECT s.*,
           LEFT JOIN labs l ON s.lab_id = l.lab_id
           WHERE 1=1";
 
-// Apply date filter
+// Apply date filter - ensure consistent date comparison using DATE() function
 if ($date_filter === 'today') {
     $query .= " AND DATE(s.check_in_time) = '$today'";
 }
@@ -64,10 +79,11 @@ if (!empty($search)) {
                 OR s.purpose LIKE '%$search%')";
 }
 
-// Apply status filter
+// Apply status filter with optimized case-insensitive comparison
 if ($status !== 'all') {
     $status = mysqli_real_escape_string($conn, $status);
-    $query .= " AND s.status = '$status'";
+    // Use case-insensitive comparison to ensure reliable filtering
+    $query .= " AND (s.status = '$status' OR LOWER(s.status) = LOWER('$status'))";
 }
 
 // Apply sorting
@@ -88,6 +104,26 @@ switch ($sort) {
 }
 
 $result = mysqli_query($conn, $query);
+if (!$result) {
+    // Simple error message without debug details
+    echo '<div class="p-4 mb-4 text-sm text-red-700 bg-red-100 rounded-lg">
+            There was an error processing your request. Please try again or contact the administrator.
+          </div>';
+}
+
+$total_records = $result ? mysqli_num_rows($result) : 0;
+
+// Create filter description for no results message
+$filter_description = '';
+if ($status !== 'all') {
+    $filter_description .= "status: " . ucfirst($status);
+}
+if (!empty($search)) {
+    $filter_description .= (!empty($filter_description) ? ", " : "") . "search: '$search'";
+}
+if ($date_filter === 'today') {
+    $filter_description .= (!empty($filter_description) ? ", " : "") . "date: Today only";
+}
 ?>
 
 <!DOCTYPE html>
@@ -178,7 +214,7 @@ $result = mysqli_query($conn, $query);
                     <div class="relative">
                         <button class="flex items-center space-x-2 focus:outline-none" id="userDropdown" onclick="toggleUserDropdown()">
                             <div class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
-                                <img src="assets/newp.jpg" alt="Admin" class="w-full h-full object-cover">
+                                <img src="newp.jpg" alt="Admin" class="w-full h-full object-cover">
                             </div>
                             <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username); ?></span>
                             <i class="fas fa-chevron-down text-xs"></i>
@@ -257,7 +293,7 @@ $result = mysqli_query($conn, $query);
                             <select name="status" class="px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary-500">
                                 <option value="all" <?php echo $status === 'all' ? 'selected' : ''; ?>>All Status</option>
                                 <option value="active" <?php echo $status === 'active' ? 'selected' : ''; ?>>Active</option>
-                                <option value="completed" <?php echo $status === 'completed' ? 'selected' : ''; ?>>Completed</option>
+                                <option value="inactive" <?php echo $status === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
                             </select>
                         </div>
                         
@@ -278,6 +314,10 @@ $result = mysqli_query($conn, $query);
                             <button type="button" onclick="window.print()" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition flex items-center">
                                 <i class="fas fa-print mr-2"></i> Print
                             </button>
+                            
+                            <a href="sitin_records.php" class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition flex items-center">
+                                <i class="fas fa-sync-alt mr-2"></i> Reset
+                            </a>
                         </div>
                     </form>
                 </div>
@@ -285,13 +325,21 @@ $result = mysqli_query($conn, $query);
                 <!-- Records Table -->
                 <div class="bg-white rounded-lg shadow overflow-hidden border border-gray-200">
                     <div class="p-4 bg-gray-50 border-b border-gray-200">
-                        <h3 class="text-lg font-medium text-gray-700">
-                            <?php if ($date_filter === 'today'): ?>
-                                Current Sit-In Records
-                            <?php else: ?>
-                                All Sit-In Records
-                            <?php endif; ?>
-                        </h3>
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-lg font-medium text-gray-700">
+                                <?php if ($date_filter === 'today'): ?>
+                                    Current Sit-In Records
+                                <?php else: ?>
+                                    All Sit-In Records
+                                <?php endif; ?>
+                                <?php if ($status !== 'all'): ?> 
+                                    <span class="text-sm font-normal ml-2">(<?php echo ucfirst($status); ?>)</span>
+                                <?php endif; ?>
+                            </h3>
+                            <span class="text-sm text-gray-500">
+                                <?php echo $total_records; ?> record<?php echo $total_records !== 1 ? 's' : ''; ?> found
+                            </span>
+                        </div>
                     </div>
                     <div class="table-container">
                         <table class="min-w-full">
@@ -315,12 +363,12 @@ $result = mysqli_query($conn, $query);
                                                 <?php echo format_date($row['check_in_time']); ?>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm">
-                                                <?php echo format_time($row['check_in_time']); ?>
+                                                <?php echo format_time_gmt8($row['check_in_time']); ?>
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap text-sm">
                                                 <?php 
                                                 if ($row['check_out_time']) {
-                                                    echo format_time($row['check_out_time']);
+                                                    echo format_time_gmt8($row['check_out_time']);
                                                 } else {
                                                     echo '<span class="text-yellow-600">Pending</span>';
                                                 }
@@ -340,16 +388,25 @@ $result = mysqli_query($conn, $query);
                                             </td>
                                             <td class="px-6 py-4 whitespace-nowrap">
                                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                                    <?php echo $row['status'] === 'active' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'; ?>">
-                                                    <?php echo $row['status'] === 'active' ? 'Active' : 'Completed'; ?>
+                                                    <?php echo strtolower($row['status']) === 'active' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'; ?>">
+                                                    <?php echo ucfirst(strtolower($row['status'])); ?>
                                                 </span>
                                             </td>
                                         </tr>
                                     <?php endwhile; ?>
                                 <?php else: ?>
                                     <tr>
-                                        <td colspan="9" class="px-6 py-4 text-center text-gray-500">
-                                            No sit-in records found.
+                                        <td colspan="9" class="px-6 py-10 text-center">
+                                            <div class="text-gray-500 flex flex-col items-center">
+                                                <i class="fas fa-search text-4xl mb-3 text-gray-400"></i>
+                                                <p class="text-lg font-medium">No sit-in records found</p>
+                                                <?php if (!empty($filter_description)): ?>
+                                                    <p class="text-sm mt-1">No records match the filters: <?php echo $filter_description; ?></p>
+                                                <?php endif; ?>
+                                                <a href="sitin_records.php" class="mt-4 px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition no-print">
+                                                    <i class="fas fa-sync-alt mr-2"></i> Reset Filters
+                                                </a>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endif; ?>

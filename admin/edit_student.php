@@ -1,48 +1,42 @@
 <?php
-// Include database connection
-require_once 'includes/db_connect.php';
 session_start();
 
 // Check if admin is logged in
-if (!isset($_SESSION['admin_id'])) {
-    header('Location: admin_login.php');
-    exit();
+if(!isset($_SESSION['admin_id']) || !$_SESSION['is_admin']) {
+    header("Location: login_admin.php");
+    exit;
 }
+
+// Include database connection
+require_once 'includes/db_connect.php';
+
+// Include data sync helper
+require_once 'includes/data_sync_helper.php';
+
+// Initialize variables
+$id_column = isset($_GET['id_col']) ? $_GET['id_col'] : 'id';
+$id_value = isset($_GET['id']) ? $_GET['id'] : '';
+$student = null;
+$error_message = '';
+$success_message = '';
+$table_name = '';
+$redirect_url = 'student.php';
 
 // Get admin username for display
 $admin_username = $_SESSION['admin_username'] ?? 'Admin';
 
-// Initialize variables
-$error_message = '';
-$success_message = '';
-$student_data = [];
-$id_column = '';
-$id_value = '';
-$table_name = '';
-$columns = [];
-
-// Check if ID is provided
-if (!isset($_GET['id']) || !isset($_GET['id_col'])) {
-    header('Location: student.php?error=missing_params');
-    exit();
-}
-
-// Get ID and ID column from URL
-$id_value = $_GET['id'];
-$id_column = $_GET['id_col'];
-
-// Find the right table for students
-$tables_in_db = [];
+// Try to find the appropriate student table
 $tables_result = $conn->query("SHOW TABLES");
+$tables_in_db = [];
+
 if ($tables_result) {
     while($table_row = $tables_result->fetch_row()) {
         $tables_in_db[] = $table_row[0];
     }
 }
 
-// Try to find the student table
+// Look for potential student tables
 $potential_tables = ['users', 'students', 'student'];
-            
 foreach ($potential_tables as $table) {
     if (in_array($table, $tables_in_db)) {
         $table_name = $table;
@@ -55,114 +49,114 @@ if (empty($table_name) && !empty($tables_in_db)) {
     $table_name = $tables_in_db[0];
 }
 
-// Get columns for the selected table
-if (!empty($table_name)) {
-    $columns = [];
-    $col_result = $conn->query("SHOW COLUMNS FROM `{$table_name}`");
-    if ($col_result) {
-        while($col = $col_result->fetch_assoc()) {
-            $columns[] = $col['Field'];
-        }
-    }
-}
-
-// Process form submission for update
+// Check if form is submitted
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_student'])) {
-    // Build SET part of query dynamically from submitted data
-    $set_parts = [];
-    $params = [];
-    $types = '';
-    
-    foreach ($_POST as $key => $value) {
-        // Skip non-field values and the ID field
-        if ($key === 'update_student' || $key === 'id_column' || $key === 'id_value') {
-            continue;
-        }
+    try {
+        // Get form data
+        $updates = [];
+        $types = '';
+        $values = [];
         
-        // Only update fields that exist in the table
-        if (in_array($key, $columns)) {
-            $set_parts[] = "`{$key}` = ?";
-            $params[] = $value;
-            $types .= 's'; // Assuming all fields are strings for simplicity
-        }
-    }
-    
-    if (!empty($set_parts)) {
-        // Create the update query
-        $update_query = "UPDATE `{$table_name}` SET " . implode(', ', $set_parts) . " WHERE `{$id_column}` = ?";
+        // Get the columns in the table
+        $columns_result = $conn->query("DESCRIBE `{$table_name}`");
+        $columns = [];
         
-        // Add ID value for the WHERE clause
-        $params[] = $_POST['id_value'];
-        $types .= 's';
-        
-        // Prepare and execute the statement
-        $stmt = $conn->prepare($update_query);
-        
-        if ($stmt) {
-            // Dynamically bind parameters using call_user_func_array
-            $bind_params = array_merge([$types], $params);
-            $tmp = [];
-            foreach ($bind_params as $key => $value) {
-                $tmp[$key] = &$bind_params[$key];
+        if ($columns_result) {
+            while ($col = $columns_result->fetch_assoc()) {
+                $columns[] = $col['Field'];
             }
-            call_user_func_array([$stmt, 'bind_param'], $tmp);
+        }
+        
+        // Build the update query dynamically
+        foreach ($_POST as $field => $value) {
+            if ($field !== 'update_student' && $field !== $id_column && in_array($field, $columns)) {
+                $updates[] = "`{$field}` = ?";
+                $types .= 's'; // Assume all fields are strings
+                $values[] = $value;
+            }
+        }
+        
+        // Add the ID value at the end for the WHERE clause
+        $types .= 's';
+        $values[] = $id_value;
+        
+        if (!empty($updates)) {
+            $update_query = "UPDATE `{$table_name}` SET " . implode(", ", $updates) . " WHERE `{$id_column}` = ?";
             
-            if ($stmt->execute()) {
-                header("Location: student.php?updated=1");
-                exit();
+            $stmt = $conn->prepare($update_query);
+            
+            if ($stmt) {
+                // Bind parameters dynamically
+                $stmt->bind_param($types, ...$values);
+                
+                if ($stmt->execute()) {
+                    // Now sync the student data
+                    $student_id = $_POST['student_id'] ?? $id_value; // Use appropriate ID field
+                    $student_name = '';
+                    
+                    // Try to find the student name from the form data
+                    if (isset($_POST['student_name'])) {
+                        $student_name = $_POST['student_name'];
+                    } elseif (isset($_POST['name'])) {
+                        $student_name = $_POST['name'];
+                    } elseif (isset($_POST['firstname']) && isset($_POST['lastname'])) {
+                        $student_name = $_POST['lastname'] . ', ' . $_POST['firstname'];
+                        if (isset($_POST['middlename']) && !empty($_POST['middlename'])) {
+                            $student_name .= ' ' . $_POST['middlename'];
+                        }
+                    }
+                    
+                    // Only sync if we have a student name
+                    if (!empty($student_name)) {
+                        $sync_result = sync_student_data($conn, $student_id, $student_name);
+                        $success_message = "Student updated successfully. " . $sync_result['message'];
+                    } else {
+                        $success_message = "Student updated successfully, but couldn't sync with sit-in records (name field not found).";
+                    }
+                    
+                    // Redirect back to student list
+                    header("Location: student.php?updated=1");
+                    exit;
+                } else {
+                    $error_message = "Error updating student: " . $stmt->error;
+                }
+                $stmt->close();
             } else {
-                $error_message = "Error updating record: " . $stmt->error;
+                $error_message = "Error preparing statement: " . $conn->error;
             }
         } else {
-            $error_message = "Error preparing statement: " . $conn->error;
+            $error_message = "No valid fields to update.";
         }
-    } else {
-        $error_message = "No valid fields to update.";
+    } catch (Exception $e) {
+        $error_message = "Error: " . $e->getMessage();
     }
 }
 
-// Fetch student data
-if (!empty($table_name)) {
+// Get student data for the form
+if (!empty($table_name) && !empty($id_value)) {
     $query = "SELECT * FROM `{$table_name}` WHERE `{$id_column}` = ?";
     $stmt = $conn->prepare($query);
     
     if ($stmt) {
         $stmt->bind_param('s', $id_value);
-        $stmt->execute();
-        $result = $stmt->get_result();
         
-        if ($result && $result->num_rows > 0) {
-            $student_data = $result->fetch_assoc();
+        if ($stmt->execute()) {
+            $result = $stmt->get_result();
+            
+            if ($result && $result->num_rows > 0) {
+                $student = $result->fetch_assoc();
+            } else {
+                $error_message = "Student not found.";
+            }
         } else {
-            $error_message = "Student record not found.";
+            $error_message = "Error fetching student data: " . $stmt->error;
         }
+        
+        $stmt->close();
     } else {
         $error_message = "Error preparing statement: " . $conn->error;
     }
-} else {
-    $error_message = "No student table found in the database.";
 }
-
-// Define which fields to exclude from editing
-$excluded_fields = ['password', 'pass', 'passwd', 'hash', 'salt', 'user_id', 'userid'];
-
-// Define display names for common fields
-$field_display_names = [
-    'id' => 'ID',
-    'student_id' => 'Student ID',
-    'first_name' => 'First Name',
-    'firstname' => 'First Name',
-    'last_name' => 'Last Name',
-    'lastname' => 'Last Name',
-    'middle_name' => 'Middle Name',
-    'middlename' => 'Middle Name',
-    'email' => 'Email Address',
-    'phone' => 'Phone Number',
-    'course' => 'Course',
-    'department' => 'Department',
-    'year_level' => 'Year Level',
-    'remaining_sessions' => 'Remaining Sessions'
-];
 ?>
 
 <!DOCTYPE html>
@@ -259,6 +253,7 @@ $field_display_names = [
                         <a href="student.php" class="px-3 py-2 bg-primary-800 rounded transition flex items-center">
                             <i class="fas fa-users mr-1"></i> Students
                         </a>
+                        <!-- Modified: Split Sit-In into separate buttons -->
                         <a href="current_sitin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-user-check mr-1"></i> Sit-In
                         </a>
@@ -276,11 +271,10 @@ $field_display_names = [
                     <button id="mobile-menu-button" class="md:hidden text-white focus:outline-none">
                         <i class="fas fa-bars text-xl"></i>
                     </button>
-                    
                     <div class="relative">
                         <button class="flex items-center space-x-2 focus:outline-none" id="userDropdown" onclick="toggleUserDropdown()">
                             <div class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
-                                <img src="assets/newp.jpg" alt="Admin" class="w-full h-full object-cover">
+                                <img src="newp.jpg" alt="Admin" class="w-full h-full object-cover">
                             </div>
                             <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username); ?></span>
                             <i class="fas fa-chevron-down text-xs"></i>
@@ -333,103 +327,66 @@ $field_display_names = [
     <!-- Main Content -->
     <div class="flex-1 flex flex-col px-4 py-6 md:px-8 bg-gray-50">
         <div class="container mx-auto flex-1 flex flex-col">
-            <!-- Breadcrumb -->
-            <div class="flex items-center mb-4 text-sm">
-                <a href="admin.php" class="text-gray-500 hover:text-primary-600">Dashboard</a>
-                <span class="mx-2 text-gray-400">/</span>
-                <a href="student.php" class="text-gray-500 hover:text-primary-600">Students</a>
-                <span class="mx-2 text-gray-400">/</span>
-                <span class="text-gray-700 font-medium">Edit Student</span>
-            </div>
-            
-            <!-- Edit Student Section -->
+            <!-- Edit Student Form Section -->
             <div class="bg-white rounded-xl shadow-md mb-6">
                 <div class="bg-gradient-to-r from-primary-700 to-primary-900 text-white px-6 py-4 rounded-t-xl">
                     <h2 class="text-xl font-semibold">Edit Student</h2>
                 </div>
                 
                 <div class="p-6">
-                    <?php if (!empty($student_data)): ?>
-                    <form method="POST" action="" class="space-y-6">
-                        <input type="hidden" name="id_column" value="<?php echo htmlspecialchars($id_column); ?>">
-                        <input type="hidden" name="id_value" value="<?php echo htmlspecialchars($id_value); ?>">
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <?php foreach ($student_data as $field => $value): ?>
-                                <?php 
-                                // Skip excluded fields
-                                $skip = false;
-                                foreach ($excluded_fields as $excluded) {
-                                    if (stripos($field, $excluded) !== false) {
-                                        $skip = true;
-                                        break;
-                                    }
-                                }
-                                if ($skip) continue;
-                                
-                                // Get display name
-                                $display_name = isset($field_display_names[$field]) ? $field_display_names[$field] : ucwords(str_replace('_', ' ', $field));
-                                
-                                // Make ID fields readonly
-                                $is_readonly = (strtolower($field) === strtolower($id_column) || stripos($field, 'id') !== false);
-                                ?>
-                            
-                            <div class="flex flex-col">
-                                <label for="<?php echo htmlspecialchars($field); ?>" class="block text-sm font-medium text-gray-700 mb-1">
-                                    <?php echo htmlspecialchars($display_name); ?>
-                                </label>
-                                
-                                <?php if ($field === 'remaining_sessions'): ?>
-                                <input 
-                                    type="number" 
-                                    id="<?php echo htmlspecialchars($field); ?>" 
-                                    name="<?php echo htmlspecialchars($field); ?>" 
-                                    value="<?php echo htmlspecialchars($value); ?>" 
-                                    class="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring focus:ring-primary-500 focus:ring-opacity-50 py-2 px-3 border"
-                                    min="0"
-                                    max="999"
-                                >
+                    <?php if ($student): ?>
+                        <form method="POST" action="" class="space-y-6">
+                            <?php foreach ($student as $field => $value): ?>
+                                <?php if ($field === $id_column): ?>
+                                    <input type="hidden" name="<?php echo htmlspecialchars($field); ?>" value="<?php echo htmlspecialchars($value); ?>">
+                                    <div class="grid grid-cols-1 gap-6 mb-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1"><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $field))); ?></label>
+                                            <input type="text" class="px-4 py-2 border border-gray-300 rounded-md w-full bg-gray-100" value="<?php echo htmlspecialchars($value); ?>" readonly>
+                                        </div>
+                                    </div>
                                 <?php else: ?>
-                                <input 
-                                    type="text" 
-                                    id="<?php echo htmlspecialchars($field); ?>" 
-                                    name="<?php echo htmlspecialchars($field); ?>" 
-                                    value="<?php echo htmlspecialchars($value); ?>" 
-                                    <?php echo $is_readonly ? 'readonly' : ''; ?>
-                                    class="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring focus:ring-primary-500 focus:ring-opacity-50 py-2 px-3 border <?php echo $is_readonly ? 'bg-gray-100' : ''; ?>"
-                                >
+                                    <div class="grid grid-cols-1 gap-6 mb-4">
+                                        <div>
+                                            <label for="<?php echo htmlspecialchars($field); ?>" class="block text-sm font-medium text-gray-700 mb-1"><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $field))); ?></label>
+                                            <?php if (strpos(strtolower($field), 'password') !== false): ?>
+                                                <input type="password" id="<?php echo htmlspecialchars($field); ?>" name="<?php echo htmlspecialchars($field); ?>" class="px-4 py-2 border border-gray-300 rounded-md w-full focus:outline-none focus:ring-2 focus:ring-primary-500" value="">
+                                                <p class="mt-1 text-xs text-gray-500">Leave blank to keep the current password</p>
+                                            <?php else: ?>
+                                                <input type="text" id="<?php echo htmlspecialchars($field); ?>" name="<?php echo htmlspecialchars($field); ?>" class="px-4 py-2 border border-gray-300 rounded-md w-full focus:outline-none focus:ring-2 focus:ring-primary-500" value="<?php echo htmlspecialchars($value); ?>">
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
                                 <?php endif; ?>
-                            </div>
                             <?php endforeach; ?>
-                        </div>
-                        
-                        <div class="flex justify-between pt-4 border-t border-gray-200">
-                            <a href="student.php" class="px-5 py-2 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 transition-colors">
-                                Cancel
-                            </a>
-                            <button type="submit" name="update_student" class="px-5 py-2 bg-primary-600 hover:bg-primary-700 rounded-md text-white transition-colors">
-                                Update Student
-                            </button>
-                        </div>
-                    </form>
+                            
+                            <div class="flex justify-between items-center pt-4">
+                                <a href="student.php" class="px-6 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition-colors">
+                                    <i class="fas fa-arrow-left mr-2"></i> Back
+                                </a>
+                                <button type="submit" name="update_student" class="px-6 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors">
+                                    <i class="fas fa-save mr-2"></i> Update Student
+                                </button>
+                            </div>
+                        </form>
                     <?php else: ?>
-                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                <i class="fas fa-exclamation-circle text-yellow-400"></i>
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm text-yellow-700">
-                                    No student record found with the provided ID.
-                                </p>
+                        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <i class="fas fa-exclamation-circle text-yellow-400"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-yellow-700">
+                                        <?php echo empty($error_message) ? "Student not found." : $error_message; ?>
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="mt-4">
-                        <a href="student.php" class="inline-block px-5 py-2 bg-primary-600 hover:bg-primary-700 rounded-md text-white transition-colors">
-                            Back to Students
-                        </a>
-                    </div>
+                        <div class="mt-4">
+                            <a href="student.php" class="px-6 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition-colors inline-block">
+                                <i class="fas fa-arrow-left mr-2"></i> Back to Students
+                            </a>
+                        </div>
                     <?php endif; ?>
                 </div>
             </div>

@@ -24,9 +24,9 @@ ALTER TABLE `sit_in_sessions`
     MODIFY COLUMN `check_out_time` DATETIME NULL,
     MODIFY COLUMN `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
--- If your timestamps were stored as UTC time but should have been Manila time,
--- you can convert them with this (uncomment if needed)
--- UPDATE `sit_in_sessions` 
---    SET `check_in_time` = DATE_ADD(`check_in_time`, INTERVAL 8 HOUR),
---        `check_out_time` = DATE_ADD(`check_out_time`, INTERVAL 8 HOUR)
---  WHERE `check_in_time` IS NOT NULL;
+-- Update existing timestamps to Manila time if they were stored as UTC
+-- IMPORTANT: ONLY run this once! Otherwise timestamps will be shifted multiple times
+UPDATE `sit_in_sessions` 
+   SET `check_in_time` = CONVERT_TZ(`check_in_time`, '+00:00', '+08:00'),
+       `check_out_time` = CONVERT_TZ(`check_out_time`, '+00:00', '+08:00')
+ WHERE `check_in_time` IS NOT NULL;

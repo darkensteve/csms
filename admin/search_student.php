@@ -419,7 +419,7 @@ if (empty($labs)) {
                     <div class="relative">
                         <button class="flex items-center space-x-2 focus:outline-none" id="userDropdown" onclick="toggleUserDropdown()">
                             <div class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
-                                <img src="assets/newp.jpg" alt="Admin" class="w-full h-full object-cover">
+                                <img src="newp.jpg" alt="Admin" class="w-full h-full object-cover">
                             </div>
                             <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username); ?></span>
                             <i class="fas fa-chevron-down text-xs"></i>
@@ -835,19 +835,28 @@ if (empty($labs)) {
                 document.getElementById('student_id').value = studentId;
                 document.getElementById('student_name').value = studentName;
                 
+                // Set a loading state
+                document.getElementById('remaining_session').value = "Loading...";
+                
                 // Fetch remaining sessions for this student using AJAX
                 fetch('get_remaining_sessions.php?student_id=' + encodeURIComponent(studentId))
-                    .then(response => response.json())
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
                     .then(data => {
                         if (data.success) {
                             document.getElementById('remaining_session').value = data.remaining_sessions;
                         } else {
-                            document.getElementById('remaining_session').value = "Not available";
+                            document.getElementById('remaining_session').value = "10"; // Default fallback
+                            console.error("Error getting remaining sessions:", data.message);
                         }
                     })
                     .catch(error => {
                         console.error('Error fetching remaining sessions:', error);
-                        document.getElementById('remaining_session').value = "Error loading data";
+                        document.getElementById('remaining_session').value = "10"; // Default fallback
                     });
                 
                 modal.classList.add('show');

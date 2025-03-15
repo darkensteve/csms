@@ -514,7 +514,7 @@ if ($result) {
                     <div class="relative">
                         <button class="flex items-center space-x-2 focus:outline-none" id="userDropdown" onclick="toggleUserDropdown()">
                             <div class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
-                                <img src="assets/newp.jpg" alt="Admin" class="w-full h-full object-cover">-full object-cover">
+                                <img src="newp.jpg" alt="Admin" class="w-full h-full object-cover">-full object-cover">
                             </div>
                             <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username); ?></span>
                             <i class="fas fa-chevron-down text-xs"></i>

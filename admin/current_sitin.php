@@ -7,6 +7,22 @@ require_once 'includes/db_connect.php';
 
 // Include datetime helper
 require_once 'includes/datetime_helper.php';
+
+// Include data sync helper for potential updates
+require_once 'includes/data_sync_helper.php';
+
+// Function to ensure times are formatted in Manila/Asia timezone (GMT+8)
+function format_datetime_gmt8($datetime_string) {
+    if (empty($datetime_string)) return '';
+    
+    // Force conversion to Manila timezone regardless of stored format
+    $dt = new DateTime($datetime_string);
+    $dt->setTimezone(new DateTimeZone('Asia/Manila'));
+    
+    // Format datetime in Manila local time (GMT+8)
+    return $dt->format('M d, Y h:i A');
+}
+
 session_start();
 
 // Check if user is logged in
@@ -240,6 +256,85 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
             0%, 100% { background-color: #fef3c7; }
             50% { background-color: #fde68a; }
         }
+        
+        /* Enhanced Modal Styles */
+        .modal-container {
+            transition: all 0.3s ease;
+        }
+        
+        .modal-content {
+            transform: scale(0.95);
+            opacity: 0;
+            transition: all 0.3s ease;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        
+        .modal-container.show .modal-content {
+            transform: scale(1);
+            opacity: 1;
+        }
+        
+        .modal-header {
+            background-image: linear-gradient(to right, var(--tw-gradient-stops));
+            --tw-gradient-from: #0369a1;
+            --tw-gradient-stops: var(--tw-gradient-from), #075985, var(--tw-gradient-to, rgba(7, 89, 133, 0));
+            --tw-gradient-to: #0c4a6e;
+        }
+        
+        .input-field {
+            transition: all 0.2s ease;
+            border-radius: 0.375rem;
+        }
+        
+        .input-field:focus {
+            border-color: #0ea5e9;
+            box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+        }
+        
+        .btn {
+            transition: all 0.2s ease;
+        }
+        
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        /* Table styles */
+        .search-results-table {
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        
+        .search-results-table th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
+        }
+        
+        .search-results-table th, 
+        .search-results-table td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .search-results-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        .search-results-table tbody tr:hover {
+            background-color: #f9fafb;
+        }
     </style>
 </head>
 <body class="font-sans h-screen flex flex-col">
@@ -304,7 +399,7 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                     <div class="relative">
                         <button class="flex items-center space-x-2 focus:outline-none" id="userDropdown" onclick="toggleUserDropdown()">
                             <div class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
-                                <img src="assets/newp.jpg" alt="User" class="w-full h-full object-cover">
+                                <img src="newp.jpg" alt="User" class="w-full h-full object-cover">
                             </div>
                             <span class="hidden sm:inline-block"><?php echo htmlspecialchars($username); ?></span>
                             <i class="fas fa-chevron-down text-xs"></i>
@@ -511,7 +606,7 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                                                     ?>
                                                 </td>
                                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    <?php echo format_datetime($sit_in['start_time']); ?>
+                                                    <?php echo format_datetime_gmt8($sit_in['start_time']); ?>
                                                 </td>
                                                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                                                     <?php 
@@ -559,7 +654,7 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                                     <a href="current_sitin.php" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors mb-3 inline-block">
                                         <i class="fas fa-times-circle mr-2"></i> Clear Search
                                     </a>
-                                    <a href="sitin_register.php" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors inline-block">
+                                    <a href="javascript:void(0)" id="registerSitinBtn" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors inline-block">
                                         <i class="fas fa-plus mr-2"></i> Register New Sit-In
                                     </a>
                                 <?php else: ?>
@@ -568,13 +663,225 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                                     </div>
                                     <h3 class="text-lg font-medium text-gray-900 mb-2">No active sit-ins at the moment</h3>
                                     <p class="text-gray-500 mb-6">Create a new sit-in to get started</p>
-                                    <a href="sitin_register.php" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors">
+                                    <a href="javascript:void(0)" id="registerSitinBtn" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors">
                                         <i class="fas fa-plus mr-2"></i> Register New Sit-In
                                     </a>
                                 <?php endif; ?>
                             </div>
                         <?php endif; ?>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sit-in Registration Modal - Step 1 (Search) -->
+    <div id="searchStudentModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal-container">
+        <div class="bg-white w-full max-w-md mx-4 modal-content">
+            <div class="modal-header text-white px-4 py-3 flex justify-between items-center">
+                <h3 class="text-lg font-semibold flex items-center">
+                    <i class="fas fa-search mr-2"></i> Search Student
+                </h3>
+                <button id="closeSearchModal" class="text-white hover:text-gray-200 focus:outline-none transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6">
+                <form id="studentSearchForm" class="mb-5">
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-medium mb-2" for="searchStudentName">
+                            Student Name
+                        </label>
+                        <div class="flex">
+                            <input type="text" id="searchStudentName" name="searchStudentName" 
+                                class="flex-grow px-3 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary-500 input-field mr-2" 
+                                placeholder="Enter student name">
+                            <button type="submit" class="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 flex items-center btn">
+                                <i class="fas fa-search mr-2"></i> Search
+                            </button>
+                        </div>
+                        <p class="mt-1 text-sm text-gray-500 flex items-center">
+                            <i class="fas fa-info-circle mr-1 text-primary-400"></i> Enter full or partial name to search
+                        </p>
+                    </div>
+                </form>
+                
+                <div id="searchResults" class="hidden">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="font-medium text-gray-700 flex items-center">
+                            <i class="fas fa-list mr-2 text-primary-500"></i> Search Results
+                        </h4>
+                        <span id="resultCount" class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full"></span>
+                    </div>
+                    <div class="max-h-60 overflow-y-auto border border-gray-200 rounded-md bg-white shadow-sm">
+                        <table class="min-w-full divide-y divide-gray-200 search-results-table" id="searchResultsTable">
+                            <thead>
+                                <tr>
+                                    <th scope="col" class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th scope="col" class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                    <th scope="col" class="text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <!-- Search results will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="noResultsMessage" class="hidden py-5 text-center text-gray-500 bg-gray-50 rounded-md mt-3">
+                        <i class="fas fa-exclamation-circle text-xl mb-2 text-gray-400"></i>
+                        <p>No students found matching your search.</p>
+                        <p class="text-sm mt-1">Try using a different name or spelling.</p>
+                    </div>
+                </div>
+                
+                <div class="mt-6 flex justify-end">
+                    <button type="button" id="cancelSearchBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 btn">
+                        <i class="fas fa-times mr-1"></i> Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sit-in Registration Modal - Step 2 (Registration Form) -->
+    <div id="sitinModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal-container">
+        <div class="bg-white w-full max-w-md mx-4 modal-content">
+            <div class="modal-header text-white px-4 py-3 flex justify-between items-center">
+                <h3 class="text-lg font-semibold flex items-center">
+                    <i class="fas fa-user-check mr-2"></i> Register New Sit-In
+                </h3>
+                <button id="closeModal" class="text-white hover:text-gray-200 focus:outline-none transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6">
+                <form id="sitinForm" action="process_sitin.php" method="POST">
+                    <div class="grid grid-cols-1 gap-4">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-medium mb-2" for="student_id">
+                                Student ID
+                            </label>
+                            <input type="text" id="student_id" name="student_id" 
+                                class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 input-field" 
+                                placeholder="Student ID" readonly>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 text-sm font-medium mb-2" for="student_name">
+                                Student Name
+                            </label>
+                            <input type="text" id="student_name" name="student_name" 
+                                class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 input-field" 
+                                placeholder="Student name" readonly>
+                        </div>
+                        
+                        <!-- Add Remaining Session field -->
+                        <div>
+                            <label class="block text-gray-700 text-sm font-medium mb-2" for="remaining_session">
+                                <i class="fas fa-ticket-alt mr-1 text-primary-500"></i> Remaining Session
+                            </label>
+                            <input type="text" id="remaining_session" name="remaining_session" readonly
+                                class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 input-field">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 text-sm font-medium mb-2" for="purpose">
+                                <i class="fas fa-tasks mr-1 text-primary-500"></i> Purpose
+                            </label>
+                            <select id="purpose" name="purpose" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 input-field" required>
+                                <option value="" selected disabled>Select purpose</option>
+                                <option value="C Programming">C Programming</option>
+                                <option value="Java Programming">Java Programming</option>
+                                <option value="C# Programming">C# Programming</option>
+                                <option value="PHP Programming">PHP Programming</option>
+                                <option value="ASP.net Programming">ASP.net Programming</option>
+                                <option value="Others">Others</option>
+                            </select>
+                        </div>
+                        
+                        <div id="othersContainer" class="hidden">
+                            <label class="block text-gray-700 text-sm font-medium mb-2" for="other_purpose">
+                                Specify Purpose
+                            </label>
+                            <input type="text" id="other_purpose" name="other_purpose" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 input-field" 
+                                placeholder="Please specify your purpose">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-gray-700 text-sm font-medium mb-2" for="lab_id">
+                                <i class="fas fa-laptop-code mr-1 text-primary-500"></i> Laboratory
+                            </label>
+                            <select id="lab_id" name="lab_id" 
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 input-field" required>
+                                <option value="">Select Laboratory</option>
+                                <?php
+                                // Fetch labs from database
+                                $labs_query = "SELECT * FROM labs ORDER BY lab_name";
+                                $labs_result = $conn->query($labs_query);
+                                if ($labs_result && $labs_result->num_rows > 0) {
+                                    while ($lab = $labs_result->fetch_assoc()) {
+                                        echo '<option value="' . $lab['lab_id'] . '">' . htmlspecialchars($lab['lab_name']) . '</option>';
+                                    }
+                                }
+                                ?>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Add redirect parameter -->
+                    <input type="hidden" name="redirect_to_current" value="1">
+                    
+                    <div id="formMessage" class="mt-4 p-3 rounded-md border hidden"></div>
+                    
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button type="button" id="backToSearchBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 btn flex items-center">
+                            <i class="fas fa-arrow-left mr-1"></i> Back
+                        </button>
+                        <button type="submit" id="submitSitIn" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 btn flex items-center">
+                            <i class="fas fa-check-circle mr-1"></i> Register Sit-In
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Already Sitting In Warning Modal -->
+    <div id="alreadySittingInModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden modal-container">
+        <div class="bg-white w-full max-w-md mx-4 modal-content">
+            <div class="px-4 py-3 border-b flex justify-between items-center">
+                <h3 class="text-lg font-semibold text-red-600 flex items-center">
+                    <i class="fas fa-exclamation-triangle mr-2"></i> Student Already Sitting In
+                </h3>
+                <button class="closeWarningModal text-gray-400 hover:text-gray-500 focus:outline-none transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-5">
+                <div class="p-4 bg-red-50 border-l-4 border-red-400 text-red-700 rounded-md mb-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-exclamation-circle text-red-500"></i>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium" id="warningStudentName">
+                                This student already has an active sit-in session.
+                            </p>
+                            <p class="text-xs mt-1">
+                                Students cannot have multiple active sit-in sessions simultaneously.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex space-x-3">
+                    <a id="viewActiveSessionBtn" href="#" class="flex-1 px-4 py-2 bg-primary-600 text-white text-center rounded-md hover:bg-primary-700 transition btn flex items-center justify-center">
+                        <i class="fas fa-eye mr-2"></i> View Active Session
+                    </a>
+                    <button class="closeWarningModal flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition btn flex items-center justify-center">
+                        <i class="fas fa-times mr-2"></i> Close
+                    </button>
                 </div>
             </div>
         </div>
@@ -591,30 +898,29 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
         document.getElementById('mobile-menu-button').addEventListener('click', function() {
             document.getElementById('mobile-menu').classList.toggle('hidden');
         });
-        
+
         // Toggle mobile dropdown menus
         document.querySelectorAll('.mobile-dropdown-button').forEach(button => {
             button.addEventListener('click', function() {
                 this.nextElementSibling.classList.toggle('hidden');
             });
         });
-        
+
         // User dropdown toggle
         function toggleUserDropdown() {
             document.getElementById('userMenu').classList.toggle('hidden');
         }
-        
+
         // Close user dropdown when clicking outside
         window.addEventListener('click', function(e) {
             if (!document.getElementById('userDropdown').contains(e.target)) {
                 document.getElementById('userMenu').classList.add('hidden');
             }
         });
-        
+
         // Auto hide notifications after 5 seconds
         document.addEventListener('DOMContentLoaded', function() {
             const notifications = document.querySelectorAll('.notification');
-            
             notifications.forEach(notification => {
                 setTimeout(() => {
                     notification.style.opacity = '0';
@@ -624,6 +930,314 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                     }, 500);
                 }, 5000);
             });
+            
+            // Sit-In Modal Functionality
+            const searchModal = document.getElementById('searchStudentModal');
+            const sitinModal = document.getElementById('sitinModal');
+            const warningModal = document.getElementById('alreadySittingInModal');
+            const closeSearchBtn = document.getElementById('closeSearchModal');
+            const closeBtn = document.getElementById('closeModal');
+            const cancelSearchBtn = document.getElementById('cancelSearchBtn');
+            const backToSearchBtn = document.getElementById('backToSearchBtn');
+            const warningCloseBtns = document.querySelectorAll('.closeWarningModal');
+            const purposeSelect = document.getElementById('purpose');
+            const othersContainer = document.getElementById('othersContainer');
+            const searchResultsContainer = document.getElementById('searchResults');
+            const noResultsMessage = document.getElementById('noResultsMessage');
+            const resultCount = document.getElementById('resultCount');
+            
+            // Show search modal on button click - make sure all register buttons go to search first
+            document.querySelectorAll('#registerSitinBtn, [id^=registerSitinBtn]').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    searchModal.classList.remove('hidden');
+                    searchModal.classList.add('show');
+                    document.body.style.overflow = 'hidden'; // Prevent scrolling
+                    document.getElementById('searchStudentName').focus();
+                    
+                    // Make sure the sit-in modal is hidden
+                    sitinModal.classList.add('hidden');
+                    sitinModal.classList.remove('show');
+                });
+            });
+            
+            // Close search modal buttons
+            closeSearchBtn.addEventListener('click', function() {
+                searchModal.classList.remove('show');
+                setTimeout(() => {
+                    searchModal.classList.add('hidden');
+                    document.body.style.overflow = '';
+                    resetSearchForm();
+                }, 300);
+            });
+            
+            cancelSearchBtn.addEventListener('click', function() {
+                searchModal.classList.remove('show');
+                setTimeout(() => {
+                    searchModal.classList.add('hidden');
+                    document.body.style.overflow = '';
+                    resetSearchForm();
+                }, 300);
+            });
+            
+            // Close search modal when clicking outside
+            window.addEventListener('click', function(e) {
+                if (e.target === searchModal) {
+                    searchModal.classList.remove('show');
+                    setTimeout(() => {
+                        searchModal.classList.add('hidden');
+                        document.body.style.overflow = '';
+                        resetSearchForm();
+                    }, 300);
+                }
+            });
+            
+            // Reset search form
+            function resetSearchForm() {
+                document.getElementById('studentSearchForm').reset();
+                searchResultsContainer.classList.add('hidden');
+                const resultsTable = document.querySelector('#searchResultsTable tbody');
+                resultsTable.innerHTML = '';
+                noResultsMessage.classList.add('hidden');
+            }
+            
+            // Handle student search form submission
+            document.getElementById('studentSearchForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const searchName = document.getElementById('searchStudentName').value.trim();
+                
+                if (searchName.length < 2) {
+                    alert('Please enter at least 2 characters to search.');
+                    return;
+                }
+                
+                // Show loading indicator
+                searchResultsContainer.classList.remove('hidden');
+                noResultsMessage.classList.add('hidden');
+                const resultsTable = document.querySelector('#searchResultsTable tbody');
+                resultsTable.innerHTML = '<tr><td colspan="3" class="text-center py-4"><div class="flex items-center justify-center"><svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>Searching...</span></div></td></tr>';
+                
+                // Fetch search results
+                fetch('search_students_ajax.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'search_term=' + encodeURIComponent(searchName)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    resultsTable.innerHTML = '';
+                    
+                    if (data.success && data.students.length > 0) {
+                        // Update result count
+                        resultCount.textContent = data.students.length + ' found';
+                        
+                        // Display search results
+                        data.students.forEach(student => {
+                            const row = document.createElement('tr');
+                            row.className = 'hover:bg-gray-50';
+                            
+                            // Improved name formatting to include middle name/initial
+                            let studentName = '';
+                            if (student.name) {
+                                // If name is already formatted, use it
+                                studentName = student.name;
+                            } else if (student.LASTNAME && student.FIRSTNAME) {
+                                // Format as LASTNAME, FIRSTNAME MI.
+                                studentName = student.LASTNAME + ', ' + student.FIRSTNAME;
+                                
+                                // Add middle initial if available
+                                if (student.MIDDLENAME) {
+                                    // If middle name exists, get first letter and add period
+                                    const middleInitial = student.MIDDLENAME.charAt(0) + '.';
+                                    studentName += ' ' + middleInitial;
+                                } else if (student.MI) {
+                                    // If MI exists directly, add it with period if it doesn't have one
+                                    const mi = student.MI.endsWith('.') ? student.MI : student.MI + '.';
+                                    studentName += ' ' + mi;
+                                }
+                            } else {
+                                // Fallback if name fields are in different format
+                                studentName = student.fullname || 'Unknown';
+                            }
+                            
+                            // Create cells
+                            const idCell = document.createElement('td');
+                            idCell.className = 'px-4 py-2 text-sm text-gray-900 font-medium';
+                            idCell.textContent = student.id || student.IDNO || student.student_id || 'N/A';
+                            
+                            const nameCell = document.createElement('td');
+                            nameCell.className = 'px-4 py-2 text-sm text-gray-700';
+                            nameCell.textContent = studentName;
+                            
+                            const actionCell = document.createElement('td');
+                            actionCell.className = 'px-4 py-2 text-center';
+                            
+                            const selectBtn = document.createElement('button');
+                            selectBtn.type = 'button';
+                            selectBtn.className = 'px-3 py-1 bg-primary-600 text-white text-sm rounded hover:bg-primary-700 transition btn';
+                            selectBtn.innerHTML = '<i class="fas fa-check mr-1"></i> Select';
+                            selectBtn.addEventListener('click', function() {
+                                const studentId = student.id || student.IDNO || student.student_id || '';
+                                checkAndOpenModal(studentId, studentName);
+                            });
+                            
+                            actionCell.appendChild(selectBtn);
+                            
+                            // Append cells to row
+                            row.appendChild(idCell);
+                            row.appendChild(nameCell);
+                            row.appendChild(actionCell);
+                            
+                            // Append row to table
+                            resultsTable.appendChild(row);
+                        });
+                        
+                        searchResultsContainer.classList.remove('hidden');
+                        noResultsMessage.classList.add('hidden');
+                    } else {
+                        // Show no results message
+                        resultCount.textContent = '0 found';
+                        searchResultsContainer.classList.remove('hidden');
+                        noResultsMessage.classList.remove('hidden');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error searching students:', error);
+                    resultsTable.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-red-500"><i class="fas fa-exclamation-circle mr-2"></i> Error searching students.</td></tr>';
+                    resultCount.textContent = 'Error';
+                });
+            });
+            
+            // Function to check if student is already sitting in
+            function checkAndOpenModal(studentId, studentName) {
+                // First check if student already has an active sit-in session
+                fetch('check_active_session.php?student_id=' + encodeURIComponent(studentId))
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.has_active_session) {
+                            // Show warning modal
+                            searchModal.classList.remove('show');
+                            setTimeout(() => {
+                                searchModal.classList.add('hidden');
+                                
+                                document.getElementById('warningStudentName').textContent = 
+                                    studentName + " already has an active sit-in session.";
+                                document.getElementById('viewActiveSessionBtn').href = 
+                                    'current_sitin.php?search=' + encodeURIComponent(studentId);
+                                
+                                warningModal.classList.remove('hidden');
+                                warningModal.classList.add('show');
+                            }, 300);
+                        } else {
+                            // Proceed with opening sit-in modal
+                            openSitInModal(studentId, studentName);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking active session:', error);
+                        // If error, allow sit-in to be safe
+                        openSitInModal(studentId, studentName);
+                    });
+            }
+            
+            // Open sit-in modal function
+            function openSitInModal(studentId, studentName) {
+                document.getElementById('student_id').value = studentId;
+                document.getElementById('student_name').value = studentName;
+                
+                // Set loading indicator
+                document.getElementById('remaining_session').value = "Loading...";
+                
+                // Fetch remaining sessions for this student
+                fetch('get_remaining_sessions.php?student_id=' + encodeURIComponent(studentId))
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('remaining_session').value = data.remaining_sessions;
+                        } else {
+                            document.getElementById('remaining_session').value = "Not available";
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching remaining sessions:', error);
+                        document.getElementById('remaining_session').value = "Error loading data";
+                    });
+                
+                // Hide search modal and show sit-in form modal
+                searchModal.classList.remove('show');
+                setTimeout(() => {
+                    searchModal.classList.add('hidden');
+                    sitinModal.classList.remove('hidden');
+                    sitinModal.classList.add('show');
+                    document.body.style.overflow = 'hidden'; // Prevent scrolling behind modal
+                }, 300);
+            }
+            
+            // Back to search button
+            backToSearchBtn.addEventListener('click', function() {
+                sitinModal.classList.remove('show');
+                setTimeout(() => {
+                    sitinModal.classList.add('hidden');
+                    searchModal.classList.remove('hidden');
+                    searchModal.classList.add('show');
+                }, 300);
+            });
+            
+            // Close warning modal
+            warningCloseBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    warningModal.classList.remove('show');
+                    setTimeout(() => {
+                        warningModal.classList.add('hidden');
+                        document.body.style.overflow = ''; // Re-enable scrolling
+                    }, 300);
+                });
+            });
+            
+            // Close modal functions
+            closeBtn.addEventListener('click', closeSitInModal);
+            
+            // Close modal when clicking outside
+            window.addEventListener('click', function(e) {
+                if (e.target === sitinModal) {
+                    closeSitInModal();
+                }
+                if (e.target === warningModal) {
+                    warningModal.classList.remove('show');
+                    setTimeout(() => {
+                        warningModal.classList.add('hidden');
+                        document.body.style.overflow = ''; // Re-enable scrolling
+                    }, 300);
+                }
+            });
+            
+            // Show/hide other purpose input based on selection
+            purposeSelect.addEventListener('change', function() {
+                if (this.value === 'Others') {
+                    othersContainer.classList.remove('hidden');
+                } else {
+                    othersContainer.classList.add('hidden');
+                }
+            });
+            
+            // Function to close the sit-in modal
+            function closeSitInModal() {
+                sitinModal.classList.remove('show');
+                setTimeout(() => {
+                    sitinModal.classList.add('hidden');
+                    document.body.style.overflow = ''; // Re-enable scrolling
+                    resetSitInForm();
+                }, 300);
+            }
+            
+            // Function to reset the sit-in form
+            function resetSitInForm() {
+                document.getElementById('sitinForm').reset();
+                othersContainer.classList.add('hidden');
+                document.getElementById('formMessage').innerHTML = '';
+                document.getElementById('formMessage').classList.add('hidden');
+            }
         });
         
         // Scroll to highlighted row if it exists
@@ -636,7 +1250,7 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                 });
             }
         });
-
+        
         // Handle timeout button click
         $(document).on('click', '.timeout-btn', function() {
             const sitinId = $(this).data('sitin-id');
@@ -662,11 +1276,18 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                                             </div>
                                             <h3 class="text-lg font-medium text-gray-900 mb-2">No active sit-ins at the moment</h3>
                                             <p class="text-gray-500 mb-6">Create a new sit-in to get started</p>
-                                            <a href="sitin_register.php" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors">
+                                            <a href="javascript:void(0)" id="registerSitinBtn" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors">
                                                 <i class="fas fa-plus mr-2"></i> Register New Sit-In
                                             </a>
                                         </div>
                                     `);
+                                    
+                                    // Reattach event listener to the newly created button
+                                    $('#registerSitinBtn').on('click', function() {
+                                        $('#searchStudentModal').removeClass('hidden').addClass('show');
+                                        document.body.style.overflow = 'hidden';
+                                        $('#searchStudentName').focus();
+                                    });
                                 }
                             });
                             
@@ -676,6 +1297,16 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                                     <i class="fas fa-check-circle mr-2"></i> ${response.message}
                                 </div>
                             `);
+                            
+                            // Auto hide notifications after 5 seconds
+                            const $notification = $('.notification').last();
+                            setTimeout(() => {
+                                $notification.css('opacity', '0');
+                                $notification.css('transition', 'opacity 0.5s ease-out');
+                                setTimeout(() => {
+                                    $notification.remove();
+                                }, 500);
+                            }, 5000);
                         } else {
                             // Show error notification
                             $('#notificationContainer').append(`
@@ -683,17 +1314,17 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                                     <i class="fas fa-exclamation-circle mr-2"></i> ${response.message}
                                 </div>
                             `);
-                        }
-                        
-                        // Auto hide notifications after 5 seconds
-                        const $notification = $('.notification').last();
-                        setTimeout(() => {
-                            $notification.css('opacity', '0');
-                            $notification.css('transition', 'opacity 0.5s ease-out');
+                            
+                            // Auto hide notifications after 5 seconds
+                            const $notification = $('.notification').last();
                             setTimeout(() => {
-                                $notification.remove();
-                            }, 500);
-                        }, 5000);
+                                $notification.css('opacity', '0');
+                                $notification.css('transition', 'opacity 0.5s ease-out');
+                                setTimeout(() => {
+                                    $notification.remove();
+                                }, 500);
+                            }, 5000);
+                        }
                     },
                     error: function(xhr, status, error) {
                         console.error("AJAX Error:", status, error);
