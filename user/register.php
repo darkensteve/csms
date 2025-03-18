@@ -17,10 +17,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $stmt->bind_param('isssssss', $idno, $firstname, $middlename, $lastname, $course, $yearlevel, $username, $password);
 
     if ($stmt->execute()) {
-        // Display a more pleasing and presentable success message
+        $message = "Registration successful! Please login.";
         echo "<script>
-        alert('Congratulations! You have successfully registered.');
-        window.location.href='index.php';
+        alert('$message');
+        window.location.href = 'index.php';
         </script>";
     } else {
         $message = "Failed to register!";

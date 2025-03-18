@@ -1,6 +1,6 @@
 <?php
 // Include database connection
-require_once 'includes/db_connect.php';
+require_once '../../includes/db_connect.php';
 session_start();
 
 // Check if admin is logged in
@@ -183,13 +183,45 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
     $id_column = isset($_GET['id_col']) ? $_GET['id_col'] : 'id';
     $id_value = $_GET['id'];
     
-    // Delete the student record
+    // First check if this student has any active sit-in sessions
+    $check_sitin_query = "SELECT COUNT(*) as count FROM sit_in_sessions WHERE student_id = ? AND status = 'active'";
+    $check_stmt = $conn->prepare($check_sitin_query);
+    
+    if ($check_stmt) { 0;
+        $check_stmt->bind_param('s', $id_value);
+        $check_stmt->bind_param('s', $id_value);
+        $check_stmt->execute();
+        $result = $check_stmt->get_result();
+        $row = $result->fetch_assoc();
+        $active_sessions = $row['count'];
+        $check_stmt->close();
+    }
+    
+    // If student has active sessions, prevent deletion
+    if ($active_sessions > 0) {
+        // Don't allow deletion, redirect with error message
+        $_SESSION['error_message'] = "Cannot delete student with active sit-in sessions. Please time out the student first.";
+        $_SESSION['student_id'] = $id_value;
+        header("Location: student.php?error=active_session");
+        exit();
+    }
+    
+    // Proceed with deletion only if no active sessions
     $delete_query = "DELETE FROM `{$table_name}` WHERE `{$id_column}` = ?";
     $stmt = $conn->prepare($delete_query);
     
     if ($stmt) {
         $stmt->bind_param('s', $id_value);
         if ($stmt->execute()) {
+            // Also delete any historical sit-in records for this student
+            $delete_history_query = "DELETE FROM sit_in_sessions WHERE student_id = ?";
+            $history_stmt = $conn->prepare($delete_history_query);
+            if ($history_stmt) {
+                $history_stmt->bind_param('s', $id_value);
+                $history_stmt->execute();
+                $history_stmt->close();
+            }
+            
             header("Location: student.php?deleted=1");
             exit();
         } else {
@@ -198,6 +230,14 @@ if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['id']))
     } else {
         $error_message = "Error preparing delete statement: " . $conn->error;
     }
+}
+
+// Check for session error message
+if (isset($_SESSION['error_message'])) {
+    $error_message = $_SESSION['error_message'];
+    $error_student_id = $_SESSION['student_id'] ?? '';
+    unset($_SESSION['error_message']);
+    unset($_SESSION['student_id']);
 }
 
 // Success message after deletion
@@ -284,6 +324,11 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
     <?php if (!empty($error_message)): ?>
     <div class="notification error" id="errorNotification">
         <i class="fas fa-exclamation-circle mr-2"></i> <?php echo $error_message; ?>
+        <?php if (isset($error_student_id) && !empty($error_student_id)): ?>
+        <a href="../sitin/current_sitin.php?search=<?php echo urlencode($error_student_id); ?>" class="ml-3 bg-white text-red-600 px-2 py-1 rounded text-xs">
+            View Active Session
+        </a>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 
@@ -294,30 +339,31 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
                 <div class="flex items-center space-x-4">
                     <a href="admin.php" class="text-xl font-bold">Dashboard</a>
                 </div>
-                
                 <div class="flex items-center space-x-3">
                     <div class="hidden md:flex items-center space-x-2 mr-4">
-                        <a href="admin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../admin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-home mr-1"></i> Home
                         </a>
                         <a href="search_student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-search mr-1"></i> Search
                         </a>
-                        <a href="student.php" class="px-3 py-2 bg-primary-800 rounded transition flex items-center">
+                        <a href="student.php" class="px-3 py-2 rounded bg-primary-800 transition flex items-center">
                             <i class="fas fa-users mr-1"></i> Students
                         </a>
-                        <!-- Modified: Split Sit-In into separate buttons -->
-                        <a href="current_sitin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../sitin/current_sitin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-user-check mr-1"></i> Sit-In
                         </a>
-                        <a href="sitin_records.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../sitin/sitin_records.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-list mr-1"></i> Records
                         </a>
-                        <a href="sitin_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../sitin/sitin_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-chart-bar mr-1"></i> Reports
                         </a>
-                        <a href="feedback_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../sitin/feedback_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-comment mr-1"></i> Feedback
+                        </a>
+                        <a href="../reservation/reservation.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-calendar-check mr-1"></i> Reservation
                         </a>
                     </div>
                     
@@ -327,7 +373,7 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
                     <div class="relative">
                         <button class="flex items-center space-x-2 focus:outline-none" id="userDropdown" onclick="toggleUserDropdown()">
                             <div class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
-                                <img src="newp.jpg" alt="Admin" class="w-full h-full object-cover">
+                                <img src="../newp.jpg" alt="Admin" class="w-full h-full object-cover">
                             </div>
                             <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username); ?></span>
                             <i class="fas fa-chevron-down text-xs"></i>
@@ -341,7 +387,7 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
                                     <i class="fas fa-cog mr-2"></i> Settings
                                 </a>
                                 <div class="border-t border-gray-100"></div>
-                                <a href="logout_admin.php" class="block px-4 py-2 text-red-600 hover:bg-gray-100">
+                                <a href="../auth/logout_admin.php" class="block px-4 py-2 text-red-600 hover:bg-gray-100">
                                     <i class="fas fa-sign-out-alt mr-2"></i> Logout
                                 </a>
                             </div>
@@ -354,7 +400,7 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
     
     <!-- Mobile Navigation Menu (hidden by default) -->
     <div id="mobile-menu" class="md:hidden bg-primary-800 hidden">
-        <a href="admin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="../admin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-home mr-2"></i> Home
         </a>
         <a href="search_student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
@@ -363,33 +409,31 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
         <a href="student.php" class="block px-4 py-2 text-white bg-primary-900">
             <i class="fas fa-users mr-2"></i> Students
         </a>
-        <!-- Modified: Split Sit-In into separate buttons for mobile menu -->
-        <a href="sitin_register.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="../sitin/current_sitin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-user-check mr-2"></i> Sit-In
         </a>
-        <a href="sitin_records.php" class="block px-4 py-2 text-white hover:bg-primary-900">
-            <i class="fas fa-list mr-2"></i> View Sit-In Records
+        <a href="../sitin/sitin_records.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-list mr-2"></i> Records
         </a>
-        <a href="sitin_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
-            <i class="fas fa-chart-bar mr-2"></i> Sit-In Reports
+        <a href="../sitin/sitin_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-chart-bar mr-2"></i> Reports
         </a>
-        <a href="feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
-            <i class="fas fa-comment mr-2"></i> Feedback Reports
+        <a href="../sitin/feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-comment mr-2"></i> Feedback
+        </a>
+        <a href="../reservation/reservation.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-calendar-check mr-2"></i> Reservation
         </a>
     </div>
 
     <!-- Main Content -->
     <div class="flex-1 flex flex-col px-4 py-6 md:px-8 bg-gray-50">
-        <div class="container mx-auto flex-1 flex flex-col">
+        <div class="container mx-auto flex-1 flex flex-col">    <div class="flex-1 flex flex-col px-4 py-6 md:px-8 bg-gray-50">
             <!-- Student Management Section -->
             <div class="bg-white rounded-xl shadow-md mb-6">
-                <div class="bg-gradient-to-r from-primary-700 to-primary-900 text-white px-6 py-4 rounded-t-xl flex justify-between items-center">
+                <div class="bg-gradient-to-r from-primary-700 to-primary-900 text-white px-6 py-4 rounded-t-xl">
                     <h2 class="text-xl font-semibold">Student Management</h2>
-                    <a href="add_student.php" class="px-4 py-2 bg-white text-primary-700 rounded hover:bg-gray-100 transition-colors text-sm font-medium">
-                        <i class="fas fa-plus mr-2"></i> Add New Student
-                    </a>
                 </div>
-                
                 <div class="p-6">
                     <!-- Enhanced debug info for administrators - only show in debug mode -->
                     <?php if (!empty($debug_info) && $debug_mode): ?>
@@ -417,7 +461,6 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
                                 </button>
                             </div>
                         </form>
-                        
                         <div class="flex space-x-2">
                             <select class="border border-gray-300 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500">
                                 <option value="">All Years</option>
@@ -426,7 +469,6 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
                                 <option value="3">Third Year</option>
                                 <option value="4">Fourth Year</option>
                             </select>
-                            
                             <select class="border border-gray-300 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500">
                                 <option value="">All Departments</option>
                                 <option value="CS">Computer Science</option>
@@ -484,7 +526,6 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
                                             // Skip some columns or limit displayed columns
                                             if ($headers_displayed >= 6) continue;
                                             
-                                            // Remember ID column for actions
                                             $col_lower = strtolower($col);
                                             if (empty($id_column) && (strpos($col_lower, 'id') !== false)) {
                                                 $id_column = $col;
@@ -492,7 +533,7 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
                                             
                                             echo '<th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">' . 
                                                 htmlspecialchars($col) . 
-                                                '</th>';
+                                                '</th>';    
                                             $headers_displayed++;
                                         }
                                         ?>
@@ -506,19 +547,17 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
                                         <?php 
                                         $cols_displayed = 0;
                                         $id_value = '';
-                                        
                                         foreach ($display_columns as $col) {
                                             // Skip some columns or limit displayed columns
                                             if ($cols_displayed >= 6) continue;
                                             
-                                            // Remember ID value for actions
                                             if ($col === $id_column) {
                                                 $id_value = $student[$col];
                                             }
                                             
                                             echo '<td class="px-4 py-3 text-sm text-gray-700">' .
                                                 htmlspecialchars($student[$col] ?? 'N/A') .
-                                                '</td>';
+                                                '</td>';    
                                             $cols_displayed++;
                                         }
                                         ?>
@@ -527,16 +566,11 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
                                             <a href="edit_student.php?id=<?php echo $id_value; ?>&id_col=<?php echo $id_column; ?>" class="text-amber-600 hover:text-amber-800 transition">
                                                 <i class="fas fa-edit"></i>
                                             </a>
-                                            <a href="student.php?action=delete&id=<?php echo $id_value; ?>&id_col=<?php echo $id_column; ?>" 
-                                               class="text-red-600 hover:text-red-800 transition" 
-                                               onclick="return confirm('Are you sure you want to delete this student record?')">
+                                            <a href="student.php?action=delete&id=<?php echo $id_value; ?>&id_col=<?php echo $id_column; ?>" class="text-red-600 hover:text-red-800 transition" onclick="return confirm('Are you sure you want to delete this student record?')">
                                                 <i class="fas fa-trash"></i>
                                             </a>
                                             <?php if ((int)$student['remaining_sessions'] < 30): ?>
-                                            <a href="reset_sessions.php?student_id=<?php echo urlencode($student[$id_column]); ?>&redirect=student.php" 
-                                               class="text-green-600 hover:text-green-900 transition" 
-                                               title="Reset Sessions to 30"
-                                               onclick="return confirm('Are you sure you want to reset this student\'s sessions to 30?')">
+                                            <a href="reset_sessions.php?student_id=<?php echo urlencode($student[$id_column]); ?>&redirect=student.php" class="text-green-600 hover:text-green-900 transition" title="Reset Sessions to 30" onclick="return confirm('Are you sure you want to reset this student\'s sessions to 30?')">
                                                 <i class="fas fa-sync-alt"></i>
                                             </a>
                                             <?php elseif ((int)$student['remaining_sessions'] >= 30): ?>
@@ -551,11 +585,11 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
                             </table>
                         </div>
                         
-                        <!-- Pagination -->
                         <?php if ($total_pages > 1): ?>
+                        <!-- Pagination -->
                         <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-                            <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                                <div>
+                            <div class="flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                                <div class="mb-4 sm:mb-0">
                                     <p class="text-sm text-gray-700">
                                         Showing
                                         <span class="font-medium"><?php echo $offset + 1; ?></span>
@@ -566,40 +600,48 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
                                         results
                                     </p>
                                 </div>
-                                <div>
-                                    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                                        <!-- Previous Page Link -->
+                                <div class="flex justify-between sm:justify-end">
+                                    <nav class="relative z-0 inline-flex rounded-md shadow-sm space-x-2" aria-label="Pagination">
+                                        <!-- Previous Page Button - Enhanced -->
                                         <a href="<?php echo $page > 1 ? '?page=' . ($page - 1) . (!empty($search_term) ? '&search=' . urlencode($search_term) : '') : '#'; ?>" 
-                                           class="<?php echo $page > 1 ? 'hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'; ?> relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500">
-                                            <span class="sr-only">Previous</span>
-                                            <i class="fas fa-chevron-left"></i>
+                                           class="<?php echo $page > 1 ? 'hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500' : 'opacity-50 cursor-not-allowed'; ?> 
+                                           relative inline-flex items-center px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                            <i class="fas fa-chevron-left mr-1 sm:mr-2"></i>
+                                            <span class="hidden sm:inline">Previous</span>
                                         </a>
                                         
-                                        <!-- Page Numbers -->
-                                        <?php 
-                                        $start_page = max(1, $page - 2);
-                                        $end_page = min($total_pages, $page + 2);
+                                        <!-- Page Info - Mobile Friendly -->
+                                        <span class="sm:hidden relative inline-flex items-center px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                            Page <?php echo $page; ?> of <?php echo $total_pages; ?>
+                                        </span>
                                         
-                                        for ($i = $start_page; $i <= $end_page; $i++): 
-                                        ?>
-                                        <a href="?page=<?php echo $i; ?><?php echo !empty($search_term) ? '&search=' . urlencode($search_term) : ''; ?>" 
-                                           class="<?php echo $i == $page ? 'bg-primary-50 border-primary-500 text-primary-600' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'; ?> relative inline-flex items-center px-4 py-2 border text-sm font-medium">
-                                            <?php echo $i; ?>
-                                        </a>
-                                        <?php endfor; ?>
+                                        <!-- Page Numbers - Visible only on larger screens -->
+                                        <div class="hidden sm:inline-flex">
+                                            <?php 
+                                            $start_page = max(1, $page - 2);
+                                            $end_page = min($total_pages, $page + 2);
+                                            for ($i = $start_page; $i <= $end_page; $i++): 
+                                            ?>
+                                            <a href="?page=<?php echo $i; ?><?php echo !empty($search_term) ? '&search=' . urlencode($search_term) : ''; ?>" 
+                                               class="<?php echo $i == $page ? 'bg-primary-50 border-primary-500 text-primary-600' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'; ?> 
+                                               relative inline-flex items-center px-4 py-2 border text-sm font-medium mx-1">
+                                                <?php echo $i; ?>
+                                            </a>
+                                            <?php endfor; ?>
+                                        </div>
                                         
-                                        <!-- Next Page Link -->
+                                        <!-- Next Page Button - Enhanced -->
                                         <a href="<?php echo $page < $total_pages ? '?page=' . ($page + 1) . (!empty($search_term) ? '&search=' . urlencode($search_term) : '') : '#'; ?>" 
-                                           class="<?php echo $page < $total_pages ? 'hover:bg-gray-50' : 'opacity-50 cursor-not-allowed'; ?> relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500">
-                                            <span class="sr-only">Next</span>
-                                            <i class="fas fa-chevron-right"></i>
+                                           class="<?php echo $page < $total_pages ? 'hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500' : 'opacity-50 cursor-not-allowed'; ?> 
+                                           relative inline-flex items-center px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                            <span class="hidden sm:inline">Next</span>
+                                            <i class="fas fa-chevron-right ml-1 sm:ml-2"></i>
                                         </a>
                                     </nav>
                                 </div>
                             </div>
                         </div>
                         <?php endif; ?>
-                    
                     <?php else: ?>
                         <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
                             <div class="flex">
@@ -653,7 +695,6 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
         // Auto hide notifications after 5 seconds
         document.addEventListener('DOMContentLoaded', function() {
             const notifications = document.querySelectorAll('.notification');
-            
             notifications.forEach(notification => {
                 setTimeout(() => {
                     notification.style.opacity = '0';

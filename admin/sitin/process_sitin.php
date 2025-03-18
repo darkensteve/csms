@@ -1,11 +1,11 @@
 <?php
 // Include database connection
-require_once 'includes/db_connect.php';
+require_once '../includes/db_connect.php';
 session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id'])) {
-    header('Location: admin_login.php');
+    header('Location: ../auth/login_admin.php');
     exit();
 }
 
@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($student_id) || empty($purpose) || empty($lab_id)) {
         $_SESSION['sitin_message'] = "All fields are required. Please try again.";
         $_SESSION['sitin_status'] = "error";
-        header('Location: search_student.php');
+        header('Location: ../students/search_student.php');
         exit();
     }
     
@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$conn->query($create_table_sql)) {
             $_SESSION['sitin_message'] = "Failed to create database table: " . $conn->error;
             $_SESSION['sitin_status'] = "error";
-            header('Location: search_student.php');
+            header('Location: ../students/search_student.php');
             exit();
         }
     }
@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $has_remaining_sessions = false;
                 $_SESSION['sitin_message'] = "This student has no remaining sit-in sessions. Please add more sessions before registering.";
                 $_SESSION['sitin_status'] = "error";
-                header('Location: search_student.php');
+                header('Location: ../students/search_student.php');
                 exit();
             }
             
@@ -116,24 +116,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($redirect_to_current) {
                 header('Location: current_sitin.php?sitin_id=' . $sitin_id);
             } else {
-                header('Location: search_student.php');
+                header('Location: ../students/search_student.php');
             }
         } else {
             // Error message
             $_SESSION['sitin_message'] = "Failed to register sit-in session: " . $stmt->error;
             $_SESSION['sitin_status'] = "error";
-            header('Location: search_student.php');
+            header('Location: ../students/search_student.php');
         }
         
         $stmt->close();
     } else {
         $_SESSION['sitin_message'] = "Database error: " . $conn->error;
         $_SESSION['sitin_status'] = "error";
-        header('Location: search_student.php');
+        header('Location: ../students/search_student.php');
     }
 } else {
     // If not a POST request, redirect to search page
-    header('Location: search_student.php');
+    header('Location: ../students/search_student.php');
 }
 
 $conn->close();

@@ -252,7 +252,7 @@ if (isset($_SESSION['id']) && isset($_SESSION['username'])) {
             </div>
             
             <div class="mt-4 text-center">
-                <a href="../admin/login_admin.php" class="inline-flex items-center justify-center px-4 py-2 border border-primary-500 text-primary-500 hover:bg-primary-50 rounded-lg transition duration-200">
+                <a href="../admin/auth/login_admin.php" class="inline-flex items-center justify-center px-4 py-2 border border-primary-500 text-primary-500 hover:bg-primary-50 rounded-lg transition duration-200">
                     <i class="fas fa-user-shield mr-2"></i> Administrator Login
                 </a>
             </div>

@@ -1,11 +1,11 @@
 <?php
 // Include database connection
-require_once 'includes/db_connect.php';
+require_once '../includes/db_connect.php';
 session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id'])) {
-    header('Location: admin_login.php');
+    header('Location: ../auth/login_admin.php');
     exit();
 }
 

@@ -3,7 +3,7 @@ session_start();
 
 // Check if user is not logged in as admin
 if(!isset($_SESSION['admin_id']) || !isset($_SESSION['is_admin']) || $_SESSION['is_admin'] !== true) {
-    header("Location: login_admin.php");
+    header("Location: ../auth/login_admin.php");
     exit;
 }
 
@@ -12,7 +12,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Validate input
     if(empty($_POST['title']) || empty($_POST['content'])) {
         $_SESSION['announcement_error'] = "Title and content are required.";
-        header("Location: admin.php");
+        header("Location: ../admin.php");
         exit;
     }
     
@@ -76,7 +76,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // If we hit an error, let's try to fix the table and then try again with basic fields
         if (strpos(mysqli_error($conn), "Unknown column") !== false) {
             // Run a quick fix to add missing columns
-            require_once('fix_announcements_table.php');
+            require_once('../setup/fix_announcements_table.php');
             
             // Try a simplified insert with just title and content
             $basic_query = "INSERT INTO announcements (title, content) VALUES ('$title', '$content')";
@@ -90,11 +90,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     mysqli_close($conn);
     
     // Redirect back to admin page
-    header("Location: admin.php");
+    header("Location: ../admin.php");
     exit;
 } else {
     // If not a POST request, redirect to admin page
-    header("Location: admin.php");
+    header("Location: ../admin.php");
     exit;
 }
 ?>

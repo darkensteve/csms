@@ -1,20 +1,42 @@
 <?php
 session_start();
-require_once '../config.php';  // Make sure this path is correct
+require_once '../../includes/db_connect.php';  // Update path to database connection
 
 // Check if already logged in
 if(isset($_SESSION['admin_id'])) {
-    // Use relative path to make sure we're targeting the file in the same directory
-    header("Location: admin.php?message=loggedin");
+    // Update redirection path
+    header("Location: ../admin.php?message=loggedin");
     exit;
 }
 
 $error = '';
 $success = '';
+$admin_setup_needed = false;
 
-// Check for logout message
+// Check if admin table exists and has records
+$check_admin_table = "SHOW TABLES LIKE 'admin'";
+$admin_table_exists = $conn->query($check_admin_table);
+
+if ($admin_table_exists->num_rows == 0) {
+    $admin_setup_needed = true;
+} else {
+    // Check if there are any admin records
+    $check_admin_users = "SELECT COUNT(*) as count FROM admin";
+    $admin_count_result = $conn->query($check_admin_users);
+    if ($admin_count_result && $admin_count_result->fetch_assoc()['count'] == 0) {
+        $admin_setup_needed = true;
+    }
+}
+
+// Check for logout message - add support for session-based messaging
 if(isset($_GET['message']) && $_GET['message'] == 'logout') {
     $success = "You have been successfully logged out.";
+}
+
+// Check for session-based notifications (will override the URL parameter)
+if(isset($_SESSION['temp_success_message'])) {
+    $success = $_SESSION['temp_success_message'];
+    unset($_SESSION['temp_success_message']);
 }
 
 // Process login form submission
@@ -43,8 +65,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $_SESSION['admin_username'] = $admin['username'];
                 $_SESSION['is_admin'] = true;
                 
-                // Use relative path to make sure we're targeting the file in the same directory
-                header("Location: admin.php?message=loggedin");
+                // Update redirection path
+                header("Location: ../admin.php?message=loggedin");
                 exit;
             } else {
                 $error = "The password you entered is incorrect.";
@@ -111,6 +133,23 @@ $conn->close();
                 <p class="text-gray-600 mt-2">Sit-In Management System</p>
             </div>
             
+            <?php if($admin_setup_needed): ?>
+            <div class="bg-amber-100 border-l-4 border-amber-500 text-amber-700 p-4 mb-6 rounded" role="alert">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="ml-3">
+                        <p class="font-medium">No admin account found!</p>
+                        <p class="mt-1">You need to create an admin account first.</p>
+                        <a href="../setup/create_admin.php" class="mt-2 inline-block font-medium text-amber-800 hover:underline">
+                            <i class="fas fa-user-plus mr-1"></i> Create Admin Account
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+            
             <?php if(!empty($error)): ?>
                 <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded" role="alert">
                     <div class="flex">
@@ -169,7 +208,7 @@ $conn->close();
             </form>
             
             <div class="mt-8 text-center border-t border-gray-200 pt-6">
-                <a href="../user/index.php" class="text-sm text-primary-500 hover:text-accent flex items-center justify-center gap-2 hover:underline transition duration-200">
+                <a href="../../user/index.php" class="text-sm text-primary-500 hover:text-accent flex items-center justify-center gap-2 hover:underline transition duration-200">
                     <i class="fas fa-arrow-left"></i> Back to Main Site
                 </a>
             </div>

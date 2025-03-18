@@ -8,10 +8,10 @@ if(!isset($_SESSION['admin_id']) || !$_SESSION['is_admin']) {
 }
 
 // Include database connection
-require_once 'includes/db_connect.php';
+require_once '../../includes/db_connect.php';
 
-// Include data sync helper
-require_once 'includes/data_sync_helper.php';
+// Include data sync helper - Fix the incorrect path
+require_once '../includes/data_sync_helper.php';
 
 // Initialize variables
 $id_column = isset($_GET['id_col']) ? $_GET['id_col'] : 'id';
@@ -244,7 +244,7 @@ if (!empty($table_name) && !empty($id_value)) {
                 
                 <div class="flex items-center space-x-3">
                     <div class="hidden md:flex items-center space-x-2 mr-4">
-                        <a href="admin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../admin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-home mr-1"></i> Home
                         </a>
                         <a href="search_student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
@@ -253,18 +253,20 @@ if (!empty($table_name) && !empty($id_value)) {
                         <a href="student.php" class="px-3 py-2 bg-primary-800 rounded transition flex items-center">
                             <i class="fas fa-users mr-1"></i> Students
                         </a>
-                        <!-- Modified: Split Sit-In into separate buttons -->
-                        <a href="current_sitin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../sitin/current_sitin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-user-check mr-1"></i> Sit-In
                         </a>
-                        <a href="sitin_records.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../sitin/sitin_records.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-list mr-1"></i> Records
                         </a>
-                        <a href="sitin_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../sitin/sitin_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-chart-bar mr-1"></i> Reports
                         </a>
-                        <a href="feedback_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../sitin/feedback_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-comment mr-1"></i> Feedback
+                        </a>
+                        <a href="../reservation/reservation.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-calendar-check mr-1"></i> Reservation
                         </a>
                     </div>
                     
@@ -301,7 +303,7 @@ if (!empty($table_name) && !empty($id_value)) {
     
     <!-- Mobile Navigation Menu (hidden by default) -->
     <div id="mobile-menu" class="md:hidden bg-primary-800 hidden">
-        <a href="admin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="../admin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-home mr-2"></i> Home
         </a>
         <a href="search_student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
@@ -310,17 +312,20 @@ if (!empty($table_name) && !empty($id_value)) {
         <a href="student.php" class="block px-4 py-2 text-white bg-primary-900">
             <i class="fas fa-users mr-2"></i> Students
         </a>
-        <a href="current_sitin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="../sitin/current_sitin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-user-check mr-2"></i> Sit-In
         </a>
-        <a href="sitin_records.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="../sitin/sitin_records.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-list mr-2"></i> Records
         </a>
-        <a href="sitin_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="../sitin/sitin_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-chart-bar mr-2"></i> Reports
         </a>
-        <a href="feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="../sitin/feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-comment mr-2"></i> Feedback
+        </a>
+        <a href="../reservation/reservation.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-calendar-check mr-2"></i> Reservation
         </a>
     </div>
 
@@ -332,7 +337,6 @@ if (!empty($table_name) && !empty($id_value)) {
                 <div class="bg-gradient-to-r from-primary-700 to-primary-900 text-white px-6 py-4 rounded-t-xl">
                     <h2 class="text-xl font-semibold">Edit Student</h2>
                 </div>
-                
                 <div class="p-6">
                     <?php if ($student): ?>
                         <form method="POST" action="" class="space-y-6">
@@ -359,7 +363,6 @@ if (!empty($table_name) && !empty($id_value)) {
                                     </div>
                                 <?php endif; ?>
                             <?php endforeach; ?>
-                            
                             <div class="flex justify-between items-center pt-4">
                                 <a href="student.php" class="px-6 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition-colors">
                                     <i class="fas fa-arrow-left mr-2"></i> Back
@@ -381,18 +384,18 @@ if (!empty($table_name) && !empty($id_value)) {
                                     </p>
                                 </div>
                             </div>
-                        </div>
-                        <div class="mt-4">
-                            <a href="student.php" class="px-6 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition-colors inline-block">
-                                <i class="fas fa-arrow-left mr-2"></i> Back to Students
-                            </a>
+                            <div class="mt-4">
+                                <a href="student.php" class="px-6 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition-colors inline-block">
+                                    <i class="fas fa-arrow-left mr-2"></i> Back to Students
+                                </a>
+                            </div>
                         </div>
                     <?php endif; ?>
                 </div>
             </div>
         </div>
     </div>
-    
+
     <footer class="bg-white border-t border-gray-200 py-3">
         <div class="container mx-auto px-4 text-center text-gray-500 text-sm">
             &copy; 2024 SitIn System - Admin Dashboard. All rights reserved.
@@ -404,23 +407,22 @@ if (!empty($table_name) && !empty($id_value)) {
         document.getElementById('mobile-menu-button').addEventListener('click', function() {
             document.getElementById('mobile-menu').classList.toggle('hidden');
         });
-        
+
         // User dropdown toggle
         function toggleUserDropdown() {
             document.getElementById('userMenu').classList.toggle('hidden');
         }
-        
+
         // Close user dropdown when clicking outside
         window.addEventListener('click', function(e) {
             if (!document.getElementById('userDropdown').contains(e.target)) {
                 document.getElementById('userMenu').classList.add('hidden');
             }
         });
-        
+
         // Auto hide notifications after 5 seconds
         document.addEventListener('DOMContentLoaded', function() {
             const notifications = document.querySelectorAll('.notification');
-            
             notifications.forEach(notification => {
                 setTimeout(() => {
                     notification.style.opacity = '0';

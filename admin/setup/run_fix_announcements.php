@@ -42,7 +42,7 @@ $is_admin = isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true;
                 <?php 
                 // Include the fix script and capture its output
                 ob_start();
-                include 'fix_announcements_table.php';
+                include 'setup/fix_announcements_table.php';
                 $output = ob_get_clean();
                 
                 echo nl2br(htmlspecialchars($output));
@@ -51,7 +51,7 @@ $is_admin = isset($_SESSION['is_admin']) && $_SESSION['is_admin'] === true;
         </div>
         
         <div class="flex justify-between mt-4">
-            <a href="admin.php" class="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">
+            <a href="../admin.php" class="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">
                 <i class="fas fa-arrow-left mr-1"></i> Return to Admin Panel
             </a>
             <button onclick="window.location.reload()" class="bg-gray-600 text-white py-2 px-4 rounded hover:bg-gray-700">

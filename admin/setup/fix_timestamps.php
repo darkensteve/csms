@@ -5,8 +5,8 @@
 date_default_timezone_set('Asia/Manila');
 
 // Include database connection
-require_once 'includes/db_connect.php';
-require_once 'includes/datetime_helper.php';
+require_once '../includes/db_connect.php';
+require_once '../includes/datetime_helper.php';
 
 // Check if admin is logged in for security (comment out for quick fix)
 session_start();
@@ -133,5 +133,5 @@ $sample_result = $conn->query($sample_query);
 <?php endif; ?>
 
 <p style="margin-top: 30px;">
-    <a href="admin.php" style="color: #0ea5e9;">Return to Admin Dashboard</a>
+    <a href="../admin.php" style="color: #0ea5e9;">Return to Admin Dashboard</a>
 </p>

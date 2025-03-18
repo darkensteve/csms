@@ -3,7 +3,7 @@ session_start();
 
 // Check if admin is logged in
 if(!isset($_SESSION['admin_id']) || !$_SESSION['is_admin']) {
-    header("Location: login_admin.php");
+    header("Location: auth/login_admin.php");
     exit;
 }
 
@@ -321,20 +321,8 @@ $table_check_query = "SHOW TABLES LIKE 'announcements'";
 $table_exists = mysqli_query($conn, $table_check_query);
 
 if (mysqli_num_rows($table_exists) == 0) {
-    // Table doesn't exist, create it
-    $create_table_query = "CREATE TABLE `announcements` (
-                          `id` int(11) NOT NULL AUTO_INCREMENT,
-                          `title` varchar(255) NOT NULL,
-                          `content` text NOT NULL,
-                          `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                          `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                          PRIMARY KEY (`id`)
-                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
-                        
-    if (!mysqli_query($conn, $create_table_query)) {
-        // Handle error
-        $_SESSION['announcement_error'] = "Error creating announcements table: " . mysqli_error($conn);
-    }
+    // Table doesn't exist, use the relocated fix script
+    require_once 'setup/fix_announcements_table.php';
 }
 
 // Fetch announcements from database
@@ -487,24 +475,27 @@ if ($result) {
                         <a href="admin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-home mr-1"></i> Home
                         </a>
-                        <a href="search_student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="students/search_student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-search mr-1"></i> Search
                         </a>
-                        <a href="student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="students/student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-users mr-1"></i> Students
                         </a>
                         <!-- Modified: Split Sit-In into separate buttons -->
-                        <a href="current_sitin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="sitin/current_sitin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-user-check mr-1"></i> Sit-In
                         </a>
-                        <a href="sitin_records.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="sitin/sitin_records.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-list mr-1"></i> Records
                         </a>
-                        <a href="sitin_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="sitin/sitin_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-chart-bar mr-1"></i> Reports
                         </a>
-                        <a href="feedback_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="sitin/feedback_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-comment mr-1"></i> Feedback
+                        </a>
+                        <a href="reservation/reservation.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-calendar-check mr-1"></i> Reservation
                         </a>
                     </div>
                     
@@ -514,7 +505,7 @@ if ($result) {
                     <div class="relative">
                         <button class="flex items-center space-x-2 focus:outline-none" id="userDropdown" onclick="toggleUserDropdown()">
                             <div class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
-                                <img src="newp.jpg" alt="Admin" class="w-full h-full object-cover">-full object-cover">
+                                <img src="newp.jpg" alt="Admin" class="w-full h-full object-cover">
                             </div>
                             <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username); ?></span>
                             <i class="fas fa-chevron-down text-xs"></i>
@@ -528,7 +519,7 @@ if ($result) {
                                     <i class="fas fa-user-edit mr-2"></i> Edit Profile
                                 </a>
                                 <div class="border-t border-gray-100"></div>
-                                <a href="logout_admin.php" class="block px-4 py-2 text-red-600 hover:bg-gray-100">
+                                <a href="auth/logout_admin.php" class="block px-4 py-2 text-red-600 hover:bg-gray-100">
                                     <i class="fas fa-sign-out-alt mr-2"></i> Logout
                                 </a>
                             </div>
@@ -544,28 +535,31 @@ if ($result) {
         <a href="admin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-home mr-2"></i> Home
         </a>
-        <a href="search_student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="students/search_student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-search mr-2"></i> Search
         </a>
-        <a href="student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="students/student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-users mr-2"></i> Students
         </a>
         <!-- Modified: Split Sit-In into separate buttons for mobile menu -->
-        <a href="sitin_register.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="sitin/current_sitin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-user-check mr-2"></i> Sit-In
         </a>
-        <a href="sitin_records.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="reservation/reservation.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-calendar-check mr-2"></i> Reservation
+        </a>
+        <a href="sitin/sitin_records.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-list mr-2"></i> View Sit-In Records
         </a>
-        <a href="sitin_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="sitin/sitin_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-chart-bar mr-2"></i> Sit-In Reports
         </a>
-        <a href="feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="sitin/feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-comment mr-2"></i> Feedback Reports
         </a>
     </div>
 
-    <!-- Dashboard Main Content -->
+    <!-- Main Content -->
     <div class="flex-1 flex flex-col px-4 py-6 md:px-8 bg-gray-50">
         <div class="container mx-auto flex-1 flex flex-col">
             <!-- Integrated Admin Dashboard Overview Section -->
@@ -634,7 +628,7 @@ if ($result) {
                 </div>
                 <div class="p-6 dashboard-section">
                     <!-- Announcement Form -->
-                    <form action="process_announcement.php" method="post" class="mb-6 border-b pb-6">
+                    <form action="announcements/process_announcement.php" method="post" class="mb-6 border-b pb-6">
                         <div class="mb-4">
                             <label for="announcement_title" class="block text-gray-700 font-medium mb-2">Announcement Title</label>
                             <input type="text" id="announcement_title" name="title" required
@@ -664,8 +658,8 @@ if ($result) {
                             </div>
                             <p class="text-gray-700 mt-2"><?php echo nl2br(htmlspecialchars($announcement['content'])); ?></p>
                             <div class="mt-3 flex space-x-2">
-                                <a href="edit_announcement.php?id=<?php echo $announcement['id']; ?>" class="text-sm text-primary-600 hover:underline">Edit</a>
-                                <a href="delete_announcement.php?id=<?php echo $announcement['id']; ?>" class="text-sm text-red-600 hover:underline" onclick="return confirm('Are you sure you want to delete this announcement?')">Delete</a>
+                                <a href="announcements/edit_announcement.php?id=<?php echo $announcement['id']; ?>" class="text-sm text-primary-600 hover:underline">Edit</a>
+                                <a href="announcements/delete_announcement.php?id=<?php echo $announcement['id']; ?>" class="text-sm text-red-600 hover:underline" onclick="return confirm('Are you sure you want to delete this announcement?')">Delete</a>
                             </div>
                         </div>
                         <?php endforeach; ?>
@@ -798,7 +792,7 @@ if ($result) {
                     }
                 }
             });
-            
+
             // Sit-In Purpose Distribution Chart
             const purposeCtx = document.getElementById('sitinPurposeChart').getContext('2d');
             

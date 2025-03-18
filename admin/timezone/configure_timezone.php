@@ -8,7 +8,7 @@ $desired_timezone = 'Asia/Manila';
 date_default_timezone_set($desired_timezone);
 
 // 2. Configure MySQL timezone via connection
-require_once 'includes/db_connect.php';
+require_once '../includes/db_connect.php';
 
 // Set session timezone to Asia/Manila (GMT+8)
 $conn->query("SET time_zone = '+08:00'");

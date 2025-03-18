@@ -1,6 +1,6 @@
 <?php
 // Include database connection
-require_once 'includes/db_connect.php';
+require_once '../../includes/db_connect.php';
 session_start();
 
 // Check if user is logged in (either admin or regular user)
@@ -29,31 +29,18 @@ try {
     $update_query = "UPDATE sit_in_sessions SET status = 'inactive', check_out_time = ? WHERE session_id = ? AND status = 'active'";
     $stmt = $conn->prepare($update_query);
     $stmt->bind_param("si", $current_time, $sitin_id);
+    $stmt->execute();
     
-    if ($stmt->execute()) {
-        // Check if any rows were affected
-        if ($stmt->affected_rows > 0) {
-            // Commit transaction
-            $conn->commit();
-            echo json_encode(['success' => true, 'message' => 'Student has been timed out successfully']);
-        } else {
-            // No rows were affected, possibly already timed out
-            $conn->rollback();
-            echo json_encode(['success' => false, 'message' => 'Sit-in session not found or already timed out']);
-        }
+    if ($stmt->affected_rows > 0) {
+        $conn->commit();
+        echo json_encode(['success' => true, 'message' => 'Student successfully timed out.']);
     } else {
-        // Error executing the query
+        // No rows updated - might be already inactive or ID not found
         $conn->rollback();
-        echo json_encode(['success' => false, 'message' => 'Error updating sit-in session: ' . $stmt->error]);
+        echo json_encode(['success' => false, 'message' => 'No active sit-in session found with that ID.']);
     }
-    
-    $stmt->close();
 } catch (Exception $e) {
-    // Handle exceptions
     $conn->rollback();
     echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
 }
-
-// Close connection
-$conn->close();
 ?>

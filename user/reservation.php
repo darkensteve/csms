@@ -1,0 +1,607 @@
+<?php
+// Start the session at the beginning
+session_start();
+
+// Check if user is logged in
+if (!isset($_SESSION['id'])) {
+    // Redirect to login page if not logged in
+    header("Location: index.php");
+    exit();
+}
+
+// Get the logged-in user's ID
+$loggedInUserId = $_SESSION['id'];
+
+// Database connection
+$servername = "localhost";
+$username = "root";
+$password = "";
+$dbname = "csms";
+
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// Initialize variables
+$message = '';
+$messageType = '';
+$setupNeeded = false;
+
+// Check if the reservations table exists
+$tableExists = $conn->query("SHOW TABLES LIKE 'reservations'")->num_rows > 0;
+if (!$tableExists) {
+    $message = "The reservations system needs to be set up. Please click <a href='create_tables.php' class='font-bold underline'>here</a> to set up the necessary database tables.";
+    $messageType = "error";
+    $setupNeeded = true;
+}
+
+// Fetch user details for form pre-fill
+$stmt = $conn->prepare("SELECT idNo, firstName, lastName, middleName, course, yearLevel, remaining_sessions FROM users WHERE user_id = ?");
+$stmt->bind_param("i", $loggedInUserId);
+$stmt->execute();
+$result = $stmt->get_result();
+
+if ($result->num_rows > 0) {
+    $user = $result->fetch_assoc();
+    $idNo = $user['idNo'];
+    $firstName = $user['firstName'];
+    $lastName = $user['lastName'];
+    $middleName = $user['middleName'];
+    $course = $user['course'];
+    $yearLevel = $user['yearLevel'];
+    $remainingSessions = $user['remaining_sessions'] ?? 30;
+} else {
+    $idNo = $firstName = $lastName = $middleName = $course = $yearLevel = '';
+    $remainingSessions = 30;
+}
+
+// Check if user has remaining sessions
+$canReserve = $remainingSessions > 0;
+
+// Form processing
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation'])) {
+    // Check if user has remaining sessions
+    if (!$canReserve) {
+        $message = "You don't have any remaining sessions. Please contact the administrator.";
+        $messageType = "error";
+    } else {
+        // Get form data
+        $labId = $_POST['lab_id'];
+        
+        // Always use today's date
+        $date = date('Y-m-d');
+        
+        // Get custom time
+        $startTime = $_POST['start_time'];
+        $endTime = $_POST['end_time'];
+        $timeSlot = $startTime . ' - ' . $endTime;
+        
+        $purpose = $_POST['purpose'];
+        
+        // Get current datetime for created_at field
+        $createdAt = date('Y-m-d H:i:s');
+        
+        // Default status is 'pending'
+        $status = 'pending';
+        
+        // Additional validation for time
+        $isTimeValid = true;
+        $timeErrorMessage = "";
+        
+        // Convert times to 24-hour format for comparison
+        $startTime24 = date('H:i', strtotime($startTime));
+        $endTime24 = date('H:i', strtotime($endTime));
+        
+        // Check if end time is after start time
+        if ($startTime24 >= $endTime24) {
+            $isTimeValid = false;
+            $timeErrorMessage = "End time must be after start time.";
+        }
+        
+        // Check if the time slot is within lab operation hours (8 AM - 6 PM)
+        $openTime = '08:00';
+        $closeTime = '18:00';
+        
+        if ($startTime24 < $openTime || $endTime24 > $closeTime) {
+            $isTimeValid = false;
+            $timeErrorMessage = "Time must be between 8 AM and 6 PM.";
+        }
+        
+        if (!$isTimeValid) {
+            $message = "Invalid time: " . $timeErrorMessage;
+            $messageType = "error";
+        } else {
+            // Insert reservation
+            $stmt = $conn->prepare("INSERT INTO reservations (user_id, lab_id, reservation_date, time_slot, purpose, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("iisssss", $loggedInUserId, $labId, $date, $timeSlot, $purpose, $status, $createdAt);
+            
+            if ($stmt->execute()) {
+                // Decrease remaining sessions
+                $newRemainingCount = $remainingSessions - 1;
+                $updateStmt = $conn->prepare("UPDATE users SET remaining_sessions = ? WHERE user_id = ?");
+                $updateStmt->bind_param("ii", $newRemainingCount, $loggedInUserId);
+                $updateStmt->execute();
+                
+                $message = "Your reservation request has been submitted successfully. Please wait for approval.";
+                $messageType = "success";
+                $remainingSessions = $newRemainingCount;
+                $canReserve = $remainingSessions > 0;
+            } else {
+                $message = "Error: " . $stmt->error;
+                $messageType = "error";
+            }
+        }
+    }
+}
+
+// Get all labs for dropdown
+$labs = [];
+// Fix the query by removing the WHERE clause with the non-existent 'status' column
+$labsResult = $conn->query("SELECT * FROM labs ORDER BY lab_name");
+if ($labsResult && $labsResult->num_rows > 0) {
+    while($row = $labsResult->fetch_assoc()) {
+        $labs[] = $row;
+    }
+}
+
+// Add error handling in case the labs table doesn't exist or has other issues
+if (empty($labs)) {
+    // Create a default lab entry if none exist
+    $labs[] = [
+        'lab_id' => 1,
+        'lab_name' => 'Computer Laboratory 1',
+        'location' => 'Main Building'
+    ];
+}
+
+// Get user's pending reservations
+$pendingReservations = [];
+if (!$setupNeeded) {
+    try {
+        $stmt = $conn->prepare("SELECT r.*, l.lab_name FROM reservations r 
+                            JOIN labs l ON r.lab_id = l.lab_id 
+                            WHERE r.user_id = ? AND r.status IN ('pending', 'approved') 
+                            ORDER BY r.reservation_date ASC, r.time_slot ASC");
+        $stmt->bind_param("i", $loggedInUserId);
+        $stmt->execute();
+        $pendingResult = $stmt->get_result();
+
+        if ($pendingResult && $pendingResult->num_rows > 0) {
+            while($row = $pendingResult->fetch_assoc()) {
+                $pendingReservations[] = $row;
+            }
+        }
+    } catch (Exception $e) {
+        // Silently handle the error - we already show a setup message if needed
+    }
+}
+
+// Define programming purposes
+$programmingPurposes = [
+    'C Programming',
+    'Java Programming',
+    'C# Programming',
+    'PHP Programming',
+    'ASP.net Programming'
+];
+
+// Check for available slots - add error handling
+function isSlotAvailable($labId, $date, $timeSlot, $conn) {
+    try {
+        $stmt = $conn->prepare("SELECT COUNT(*) as count FROM reservations WHERE lab_id = ? AND reservation_date = ? AND time_slot = ? AND status IN ('pending', 'approved')");
+        $stmt->bind_param("iss", $labId, $date, $timeSlot);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        
+        // Get lab capacity
+        $capacityStmt = $conn->prepare("SELECT capacity FROM labs WHERE lab_id = ?");
+        $capacityStmt->bind_param("i", $labId);
+        $capacityStmt->execute();
+        $capacityResult = $capacityStmt->get_result();
+        $capacityRow = $capacityResult->fetch_assoc();
+        $capacity = $capacityRow['capacity'] ?? 30;
+        
+        return $row['count'] < $capacity;
+    } catch (Exception $e) {
+        // Default to showing slot as available if there's a database error
+        return true;
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reservation - SitIn System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            300: '#7dd3fc',
+                            400: '#38bdf8',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .notification.success {
+            background-color: #10b981;
+        }
+        
+        .notification.error {
+            background-color: #ef4444;
+        }
+        
+        .notification.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .notification i {
+            margin-right: 10px;
+            font-size: 18px;
+        }
+
+        .date-disabled {
+            background-color: #f3f4f6;
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body class="font-sans bg-gray-50 min-h-screen flex flex-col">
+    <!-- Navigation Bar -->
+    <header class="bg-primary-700 text-white shadow-lg">
+        <div class="container mx-auto">
+            <nav class="flex items-center justify-between px-4 py-3">
+                <div class="flex items-center space-x-4">
+                    <a href="dashboard.php" class="text-xl font-bold">SitIn Dashboard</a>
+                </div>
+                
+                <div class="flex items-center space-x-3">
+                    <div class="hidden md:flex items-center space-x-2 mr-4">
+                        <a href="dashboard.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Home</a>
+                        <div class="relative group">
+                            <button class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                                Notification <i class="fas fa-chevron-down ml-1 text-xs"></i>
+                            </button>
+                            <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 hidden group-hover:block">
+                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Action 1</a>
+                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Action 2</a>
+                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Action 3</a>
+                            </div>
+                        </div>
+                        <a href="edit.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Edit Profile</a>
+                        <a href="history.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">History</a>
+                        <a href="reservation.php" class="px-3 py-2 rounded bg-primary-800 transition">Reservation</a>
+                    </div>
+                    
+                    <button id="mobile-menu-button" class="md:hidden text-white focus:outline-none">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                    <a href="logout.php" class="bg-red-500 hover:bg-red-600 text-white font-medium px-4 py-2 rounded transition">
+                        Log out
+                    </a>
+                </div>
+            </nav>
+        </div>
+    </header>
+    
+    <!-- Mobile Navigation Menu (hidden by default) -->
+    <div id="mobile-menu" class="md:hidden bg-primary-800 hidden">
+        <a href="dashboard.php" class="block px-4 py-2 text-white hover:bg-primary-900">Home</a>
+        <button class="mobile-dropdown-button w-full text-left px-4 py-2 text-white hover:bg-primary-900 flex justify-between items-center">
+            Notification <i class="fas fa-chevron-down ml-1"></i>
+        </button>
+        <div class="mobile-dropdown-content hidden bg-primary-900 px-4 py-2">
+            <a href="#" class="block py-1 text-white hover:text-gray-300">Action 1</a>
+            <a href="#" class="block py-1 text-white hover:text-gray-300">Action 2</a>
+            <a href="#" class="block py-1 text-white hover:text-gray-300">Action 3</a>
+        </div>
+        <a href="edit.php" class="block px-4 py-2 text-white hover:bg-primary-900">Edit Profile</a>
+        <a href="history.php" class="block px-4 py-2 text-white hover:bg-primary-900">History</a>
+        <a href="reservation.php" class="block px-4 py-2 text-white bg-primary-900">Reservation</a>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 py-8 flex-grow">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6">Lab SitIn Reservation</h1>
+        
+        <?php if (!empty($message)): ?>
+            <div class="mb-6 p-4 rounded-lg <?php echo $messageType === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'; ?>">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <i class="fas <?php echo $messageType === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'; ?> mt-0.5"></i>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm"><?php echo $message; ?></p>
+                    </div>
+                </div>
+            </div>
+        <?php endif; ?>
+        
+        <!-- Only show the main content if setup is not needed -->
+        <?php if (!$setupNeeded): ?>
+        
+        <!-- Remaining Sessions Info Card -->
+        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+            <div class="flex items-center">
+                <div class="w-12 h-12 rounded-full bg-<?php echo $canReserve ? 'green' : 'red'; ?>-100 flex items-center justify-center flex-shrink-0">
+                    <i class="fas fa-ticket-alt text-<?php echo $canReserve ? 'green' : 'red'; ?>-600"></i>
+                </div>
+                <div class="ml-4">
+                    <h2 class="text-lg font-semibold text-gray-800">Remaining Sessions: <span class="text-<?php echo $canReserve ? 'green' : 'red'; ?>-600"><?php echo $remainingSessions; ?></span></h2>
+                    <p class="text-sm text-gray-600">
+                        <?php if ($canReserve): ?>
+                            You can make reservations for lab sit-ins. Each reservation consumes one session.
+                        <?php else: ?>
+                            You've used all your sessions. Please contact the administrator to reset your session count.
+                        <?php endif; ?>
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Reservation Form -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">Make a Reservation</h2>
+                    
+                    <?php if (!$canReserve): ?>
+                        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-yellow-700">
+                                        You don't have any remaining sessions. Please contact the administrator to request more sessions.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                    
+                    <form action="reservation.php" method="POST" id="reservationForm">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <!-- Student Information (Read-only) -->
+                            <div>
+                                <label for="idno" class="block text-sm font-medium text-gray-700 mb-1">ID Number</label>
+                                <input type="text" id="idno" value="<?php echo $idNo; ?>" class="bg-gray-50 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 text-gray-500" readonly>
+                            </div>
+                            <div>
+                                <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                                <input type="text" id="name" value="<?php echo "$firstName $middleName $lastName"; ?>" class="bg-gray-50 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 text-gray-500" readonly>
+                            </div>
+                            <div>
+                                <label for="course" class="block text-sm font-medium text-gray-700 mb-1">Course</label>
+                                <input type="text" id="course" value="<?php echo $course; ?>" class="bg-gray-50 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 text-gray-500" readonly>
+                            </div>
+                            <div>
+                                <label for="yearlevel" class="block text-sm font-medium text-gray-700 mb-1">Year Level</label>
+                                <input type="text" id="yearlevel" value="<?php echo $yearLevel; ?>" class="bg-gray-50 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 text-gray-500" readonly>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="lab_id" class="block text-sm font-medium text-gray-700 mb-1">Select Laboratory</label>
+                            <select id="lab_id" name="lab_id" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500" <?php echo !$canReserve ? 'disabled' : ''; ?> required>
+                                <option value="">Select a laboratory</option>
+                                <?php foreach ($labs as $lab): ?>
+                                <option value="<?php echo $lab['lab_id']; ?>"><?php echo $lab['lab_name'] . ' (' . $lab['location'] . ')'; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="reservation_date_display" class="block text-sm font-medium text-gray-700 mb-1">Date (Today Only)</label>
+                            <input type="text" id="reservation_date_display" value="<?php echo date('Y-m-d'); ?>" class="bg-gray-50 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 text-gray-500" readonly>
+                            <p class="text-xs text-gray-500 mt-1">Reservations are only available for today's date.</p>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label for="start_time" class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                                <input type="time" id="start_time" name="start_time" min="08:00" max="17:00" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500" <?php echo !$canReserve ? 'disabled' : ''; ?> required>
+                            </div>
+                            <div>
+                                <label for="end_time" class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                                <input type="time" id="end_time" name="end_time" min="09:00" max="18:00" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500" <?php echo !$canReserve ? 'disabled' : ''; ?> required>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1 mb-4">Lab hours are from 8:00 AM to 6:00 PM.</p>
+                        
+                        <div class="mb-6">
+                            <label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">Purpose of SitIn</label>
+                            <select id="purpose" name="purpose" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500" <?php echo !$canReserve ? 'disabled' : ''; ?> required>
+                                <option value="" selected disabled>Select purpose</option>
+                                <?php foreach ($programmingPurposes as $purpose): ?>
+                                <option value="<?php echo $purpose; ?>"><?php echo $purpose; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        
+                        <div class="flex justify-end">
+                            <button type="submit" name="submit_reservation" class="px-6 py-2.5 bg-primary-600 text-white font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors" <?php echo !$canReserve ? 'disabled' : ''; ?>>
+                                <i class="fas fa-calendar-plus mr-2"></i> Submit Reservation
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Active Reservations -->
+            <div>
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                    <h2 class="text-xl font-semibold text-gray-800 mb-4">Your Active Reservations</h2>
+                    
+                    <?php if (empty($pendingReservations)): ?>
+                        <div class="text-center py-4">
+                            <div class="text-gray-400 mb-2">
+                                <i class="fas fa-calendar-times text-4xl"></i>
+                            </div>
+                            <p class="text-gray-600">You don't have any active reservations.</p>
+                        </div>
+                    <?php else: ?>
+                        <div class="space-y-4">
+                            <?php foreach ($pendingReservations as $reservation): ?>
+                                <div class="border border-gray-200 rounded-md p-4 hover:bg-gray-50 transition">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <span class="font-medium text-primary-700"><?php echo $reservation['lab_name']; ?></span>
+                                        <span class="px-2 py-1 rounded-full text-xs font-medium <?php echo $reservation['status'] === 'approved' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'; ?>">
+                                            <?php echo ucfirst($reservation['status']); ?>
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="text-sm text-gray-600 space-y-1">
+                                        <div class="flex">
+                                            <i class="fas fa-calendar-day w-5 text-gray-500"></i>
+                                            <span><?php echo date('M d, Y', strtotime($reservation['reservation_date'])); ?></span>
+                                        </div>
+                                        <div class="flex">
+                                            <i class="fas fa-clock w-5 text-gray-500"></i>
+                                            <span><?php echo $reservation['time_slot']; ?></span>
+                                        </div>
+                                        <div class="flex">
+                                            <i class="fas fa-comment w-5 text-gray-500"></i>
+                                            <span class="line-clamp-1"><?php echo substr($reservation['purpose'], 0, 40) . (strlen($reservation['purpose']) > 40 ? '...' : ''); ?></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                    
+                    <div class="mt-4 pt-4 border-t border-gray-200">
+                        <a href="history.php" class="text-primary-600 hover:text-primary-800 font-medium text-sm flex items-center">
+                            <i class="fas fa-history mr-2"></i> View Reservation History
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <?php else: ?>
+        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div class="text-center py-8">
+                <div class="text-amber-500 mb-4">
+                    <i class="fas fa-tools text-6xl"></i>
+                </div>
+                <h2 class="text-xl font-bold mb-2">Reservation System Setup Required</h2>
+                <p class="text-gray-600 mb-4">The reservation system needs to be set up before you can make reservations.</p>
+                <a href="create_tables.php" class="px-4 py-2 bg-primary-600 text-white font-medium rounded-md hover:bg-primary-700 transition-colors">
+                    Set Up Reservation System
+                </a>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
+    
+    <footer class="bg-white border-t border-gray-200 py-4 mt-auto">
+        <div class="container mx-auto px-4 text-center text-gray-500 text-sm">
+            &copy; 2024 SitIn System. All rights reserved.
+        </div>
+    </footer>
+
+    <script>
+        // Toggle mobile menu
+        document.getElementById('mobile-menu-button').addEventListener('click', function() {
+            document.getElementById('mobile-menu').classList.toggle('hidden');
+        });
+        
+        // Toggle mobile dropdown menus
+        document.querySelectorAll('.mobile-dropdown-button').forEach(button => {
+            button.addEventListener('click', function() {
+                this.nextElementSibling.classList.toggle('hidden');
+            });
+        });
+        
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.add('show');
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                    setTimeout(() => {
+                        notification.remove();
+                    }, 300);
+                }, 3000);
+            }, 100);
+        }
+        
+        // Form validation before submission
+        document.getElementById('reservationForm').addEventListener('submit', function(e) {
+            const startTime = document.getElementById('start_time').value;
+            const endTime = document.getElementById('end_time').value;
+            
+            if (startTime && endTime) {
+                // Check if end time is after start time
+                if (startTime >= endTime) {
+                    e.preventDefault();
+                    showNotification("End time must be after start time.", "error");
+                }
+                
+                // Check if times are within lab hours (8 AM - 6 PM)
+                const startHour = parseInt(startTime.split(':')[0]);
+                const endHour = parseInt(endTime.split(':')[0]);
+                const endMinute = parseInt(endTime.split(':')[1]);
+                
+                if (startHour < 8 || (endHour > 18 || (endHour === 18 && endMinute > 0))) {
+                    e.preventDefault();
+                    showNotification("Lab hours are from 8:00 AM to 6:00 PM.", "error");
+                }
+            }
+        });
+        
+        // Check if notification should be shown (from PHP)
+        <?php if (!empty($message)): ?>
+        showNotification("<?php echo $message; ?>", "<?php echo $messageType; ?>");
+        <?php endif; ?>
+    </script>
+</body>
+</html>

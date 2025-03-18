@@ -35,6 +35,73 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = $_POST['username'] ?? '';
     $email = $_POST['email'] ?? '';
     $address = $_POST['address'] ?? '';
+    
+    // Password change fields
+    $currentPassword = $_POST['currentPassword'] ?? '';
+    $newPassword = $_POST['newPassword'] ?? '';
+    $confirmPassword = $_POST['confirmPassword'] ?? '';
+    
+    // Password change handling - check if user is trying to change password
+    $passwordChangeRequested = (!empty($currentPassword) || !empty($newPassword) || !empty($confirmPassword));
+    $passwordChangeSuccess = false;
+    $passwordChangeError = '';
+    
+    if ($passwordChangeRequested) {
+        // Check if all required password fields are filled
+        if (empty($currentPassword) || empty($newPassword) || empty($confirmPassword)) {
+            $passwordChangeError = "All password fields are required to change your password.";
+        } elseif ($newPassword !== $confirmPassword) {
+            $passwordChangeError = "New password and confirmation password do not match.";
+        } else {
+            // Verify current password from database
+            $passwordSql = "SELECT password FROM users WHERE user_id = ?";
+            $passwordStmt = $conn->prepare($passwordSql);
+            $passwordStmt->bind_param("i", $loggedInUserId);
+            $passwordStmt->execute();
+            $passwordResult = $passwordStmt->get_result();
+            
+            if ($passwordResult->num_rows > 0) {
+                $userData = $passwordResult->fetch_assoc();
+                $storedPassword = $userData['password'];
+                
+                // Check if the current password is correct
+                $passwordCorrect = false;
+                
+                // First try to verify with password_verify in case it's a hash
+                if (password_verify($currentPassword, $storedPassword)) {
+                    $passwordCorrect = true;
+                } 
+                // Fallback to direct comparison for legacy plain-text passwords
+                elseif ($currentPassword === $storedPassword) {
+                    $passwordCorrect = true;
+                }
+                
+                if ($passwordCorrect) {
+                    // Hash the new password
+                    $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+                    
+                    // Update the password in the database
+                    $updatePasswordSql = "UPDATE users SET password = ? WHERE user_id = ?";
+                    $updatePasswordStmt = $conn->prepare($updatePasswordSql);
+                    $updatePasswordStmt->bind_param("si", $hashedPassword, $loggedInUserId);
+                    
+                    if ($updatePasswordStmt->execute()) {
+                        $passwordChangeSuccess = true;
+                    } else {
+                        $passwordChangeError = "Error updating password: " . $updatePasswordStmt->error;
+                    }
+                    
+                    $updatePasswordStmt->close();
+                } else {
+                    $passwordChangeError = "Current password is incorrect.";
+                }
+            } else {
+                $passwordChangeError = "User data could not be retrieved.";
+            }
+            
+            $passwordStmt->close();
+        }
+    }
 
     // Check if profile picture was uploaded
     if (isset($_FILES['profilePicture']) && $_FILES['profilePicture']['name'] != '') {
@@ -120,6 +187,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         
         $stmt->close();
+    }
+
+    // Display password change results
+    if ($passwordChangeRequested) {
+        if ($passwordChangeSuccess) {
+            echo "<div class='bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4'>
+                    Password successfully updated!
+                  </div>";
+        } elseif (!empty($passwordChangeError)) {
+            echo "<div class='bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4'>
+                    {$passwordChangeError}
+                  </div>";
+        }
     }
 
     $conn->close();

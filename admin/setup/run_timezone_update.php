@@ -1,49 +1,5 @@
 <?php
-// This script runs the necessary SQL commands to ensure the database is storing times in the correct timezone
-
-// Include database connection
-require_once 'includes/db_connect.php';
-
-// Set PHP timezone to Manila
-date_default_timezone_set('Asia/Manila');
-
-echo "<h1>Database Timezone Update for Asia/Manila (GMT+8)</h1>";
-echo "<p>This script will modify your database to handle timezone information correctly.</p>";
-
-// Check current PHP and MySQL timezone settings
-echo "<h2>Current Settings:</h2>";
-echo "<p>PHP Timezone: " . date_default_timezone_get() . "</p>";
-echo "<p>Current PHP Time: " . date('Y-m-d H:i:s') . "</p>";
-
-try {
-    // Get current MySQL timezone
-    $result = $conn->query("SELECT @@session.time_zone AS timezone");
-    $row = $result->fetch_assoc();
-    echo "<p>Current MySQL Timezone: " . $row['timezone'] . "</p>";
-} catch(Exception $e) {
-    echo "<p>Error checking MySQL timezone: " . $e->getMessage() . "</p>";
-}
-
-echo "<hr>";
-
-// Set session timezone for MySQL
-try {
-    $conn->query("SET time_zone = '+08:00'");
-    $result = $conn->query("SELECT @@session.time_zone AS timezone");
-    $row = $result->fetch_assoc();
-    echo "<p>✓ Successfully set session timezone to: " . $row['timezone'] . "</p>";
-} catch(Exception $e) {
-    echo "<p>❌ Error setting session timezone: " . $e->getMessage() . "</p>";
-}
-
-// Try to set global timezone
-try {
-    $conn->query("SET GLOBAL time_zone = '+08:00'");
-    echo "<p>✓ Successfully set global timezone to +08:00 (Manila)</p>";
-} catch(Exception $e) {
-    echo "<p>⚠️ Could not set global timezone (requires privileges): " . $e->getMessage() . "</p>";
-    echo "<p>Your database administrator should run: <code>SET GLOBAL time_zone = '+08:00';</code></p>";
-}
+// Include necessary files and database connection...
 
 // Check if sit_in_sessions table exists
 try {

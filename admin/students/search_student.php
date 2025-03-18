@@ -1,11 +1,11 @@
 <?php
 // Include database connection
-require_once 'includes/db_connect.php';
+require_once '../includes/db_connect.php';
 session_start();
 
 // Check if admin is logged in
 if (!isset($_SESSION['admin_id'])) {
-    header('Location: admin_login.php');
+    header('Location: ../auth/login_admin.php');
     exit();
 }
 
@@ -20,7 +20,22 @@ $debug_info = '';
 $sql_query = '';
 $error_message = ''; // Added for error handling
 
-// Add a new function to check if a student is already in an active sit-in session
+// Add a function to check if a student has remaining sessions
+function checkRemainingSession($conn, $student_id) {
+    $query = "SELECT remaining_sessions FROM users WHERE idNo = ?";
+    $stmt = $conn->prepare($query);
+    if ($stmt) {
+        $stmt->bind_param("s", $student_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result->fetch_assoc();
+        $stmt->close();
+        return $row ? ($row['remaining_sessions'] > 0) : false;
+    }
+    return false;
+}
+
+// Add a function to check if a student is already in an active sit-in session
 function checkActiveSession($conn, $student_id) {
     $query = "SELECT COUNT(*) as count FROM sit_in_sessions WHERE student_id = ? AND status = 'active'";
     $stmt = $conn->prepare($query);
@@ -389,7 +404,7 @@ if (empty($labs)) {
                 
                 <div class="flex items-center space-x-3">
                     <div class="hidden md:flex items-center space-x-2 mr-4">
-                        <a href="admin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../admin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-home mr-1"></i> Home
                         </a>
                         <a href="search_student.php" class="px-3 py-2 bg-primary-800 rounded transition flex items-center">
@@ -398,18 +413,20 @@ if (empty($labs)) {
                         <a href="student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-users mr-1"></i> Students
                         </a>
-                        <!-- Update navigation link to be consistent with current_sitin.php -->
-                        <a href="current_sitin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../sitin/current_sitin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-user-check mr-1"></i> Sit-In
                         </a>
-                        <a href="sitin_records.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../sitin/sitin_records.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-list mr-1"></i> Records
                         </a>
-                        <a href="sitin_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../sitin/sitin_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-chart-bar mr-1"></i> Reports
                         </a>
-                        <a href="feedback_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../sitin/feedback_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-comment mr-1"></i> Feedback
+                        </a>
+                        <a href="../reservation/reservation.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-calendar-check mr-1"></i> Reservation
                         </a>
                     </div>
                     
@@ -419,7 +436,7 @@ if (empty($labs)) {
                     <div class="relative">
                         <button class="flex items-center space-x-2 focus:outline-none" id="userDropdown" onclick="toggleUserDropdown()">
                             <div class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
-                                <img src="newp.jpg" alt="Admin" class="w-full h-full object-cover">
+                                <img src="../newp.jpg" alt="Admin" class="w-full h-full object-cover">
                             </div>
                             <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username); ?></span>
                             <i class="fas fa-chevron-down text-xs"></i>
@@ -433,7 +450,7 @@ if (empty($labs)) {
                                     <i class="fas fa-cog mr-2"></i> Settings
                                 </a>
                                 <div class="border-t border-gray-100"></div>
-                                <a href="logout_admin.php" class="block px-4 py-2 text-red-600 hover:bg-gray-100">
+                                <a href="../auth/logout_admin.php" class="block px-4 py-2 text-red-600 hover:bg-gray-100">
                                     <i class="fas fa-sign-out-alt mr-2"></i> Logout
                                 </a>
                             </div>
@@ -446,7 +463,7 @@ if (empty($labs)) {
     
     <!-- Mobile Navigation Menu (hidden by default) -->
     <div id="mobile-menu" class="md:hidden bg-primary-800 hidden">
-        <a href="admin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="../admin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-home mr-2"></i> Home
         </a>
         <a href="search_student.php" class="block px-4 py-2 text-white bg-primary-900">
@@ -455,17 +472,20 @@ if (empty($labs)) {
         <a href="student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-users mr-2"></i> Students
         </a>
-        <a href="current_sitin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="../sitin/current_sitin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-user-check mr-2"></i> Sit-In
         </a>
-        <a href="sitin_records.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="../sitin/sitin_records.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-list mr-2"></i> Records
         </a>
-        <a href="sitin_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="../sitin/sitin_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-chart-bar mr-2"></i> Reports
         </a>
-        <a href="feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="../sitin/feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-comment mr-2"></i> Feedback
+        </a>
+        <a href="../reservation/reservation.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-calendar-check mr-2"></i> Reservation
         </a>
     </div>
 
@@ -638,7 +658,7 @@ if (empty($labs)) {
                 </button>
             </div>
             
-            <form id="sitInForm" action="process_sitin.php" method="POST" class="space-y-4">
+            <form id="sitInForm" action="../sitin/process_sitin.php" method="POST" class="space-y-4">
                 <div>
                     <label for="student_id" class="block text-sm font-medium text-gray-700">ID Number</label>
                     <input type="text" id="student_id" name="student_id" readonly
@@ -673,14 +693,7 @@ if (empty($labs)) {
                         <option value="C# Programming">C# Programming</option>
                         <option value="PHP Programming">PHP Programming</option>
                         <option value="ASP.net Programming">ASP.net Programming</option>
-                        <option value="Others">Others</option>
                     </select>
-                </div>
-                
-                <div id="othersContainer" class="hidden">
-                    <label for="other_purpose" class="block text-sm font-medium text-gray-700">Specify Purpose</label>
-                    <input type="text" id="other_purpose" name="other_purpose" 
-                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500">
                 </div>
                 
                 <div>
@@ -776,8 +789,6 @@ if (empty($labs)) {
             const closeBtn = document.getElementById('closeModal');
             const cancelBtn = document.getElementById('cancelSitIn');
             const warningCloseBtns = document.querySelectorAll('.closeWarningModal');
-            const purposeSelect = document.getElementById('purpose');
-            const othersContainer = document.getElementById('othersContainer');
             
             // Open the modal when clicking on a student row or sit-in button
             document.querySelectorAll('.student-row').forEach(row => {
@@ -800,26 +811,96 @@ if (empty($labs)) {
             // Function to check if student is already sitting in
             function checkAndOpenModal(studentId, studentName) {
                 // First check if student already has an active sit-in session
-                fetch('check_active_session.php?student_id=' + encodeURIComponent(studentId))
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.has_active_session) {
-                            // Show warning modal
-                            document.getElementById('warningStudentName').textContent = 
-                                studentName + " already has an active sit-in session.";
-                            document.getElementById('viewActiveSessionBtn').href = 
-                                'current_sitin.php?search=' + encodeURIComponent(studentId);
-                            warningModal.classList.add('show');
-                        } else {
-                            // Proceed with opening sit-in modal
-                            openSitInModal(studentId, studentName);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error checking active session:', error);
-                        // If error, allow sit-in to be safe
-                        openSitInModal(studentId, studentName);
-                    });
+                fetch('../includes/check_active_sitin.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'studentId=' + encodeURIComponent(studentId)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.hasActiveSession) {
+                        // Show warning modal
+                        document.getElementById('warningStudentName').textContent = 
+                            studentName + " already has an active sit-in session.";
+                        document.getElementById('viewActiveSessionBtn').href = 
+                            '../sitin/current_sitin.php?search=' + encodeURIComponent(studentId);
+                        warningModal.classList.add('show');
+                    } else {
+                        // Check remaining sessions before proceeding
+                        fetch('get_remaining_sessions.php?student_id=' + encodeURIComponent(studentId))
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error('Network response was not ok');
+                                }
+                                return response.json();
+                            })
+                            .then(sessionsData => {
+                                // Proceed with opening sit-in modal with retrieved sessions
+                                openSitInModal(studentId, studentName, sessionsData.remaining_sessions);
+                            })
+                            .catch(error => {
+                                console.error('Error fetching remaining sessions:', error);
+                                // If error, proceed with default value
+                                openSitInModal(studentId, studentName, 30);
+                            });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking active session:', error);
+                    // If error, proceed to check remaining sessions
+                    fetch('get_remaining_sessions.php?student_id=' + encodeURIComponent(studentId))
+                        .then(response => response.json())
+                        .then(sessionsData => {
+                            openSitInModal(studentId, studentName, sessionsData.remaining_sessions);
+                        })
+                        .catch(error => {
+                            openSitInModal(studentId, studentName, 30);
+                        });
+                });
+            }
+            
+            // Open sit-in modal function - Updated to accept remaining sessions parameter
+            function openSitInModal(studentId, studentName, remainingSessions = null) {
+                document.getElementById('student_id').value = studentId;
+                document.getElementById('student_name').value = studentName;
+                
+                // Set remaining sessions value
+                if (remainingSessions === null) {
+                    document.getElementById('remaining_session').value = "Loading...";
+                    
+                    // Fetch remaining sessions for this student if not provided
+                    fetch('get_remaining_sessions.php?student_id=' + encodeURIComponent(studentId))
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Network response was not ok');
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data.success) {
+                                document.getElementById('remaining_session').value = data.remaining_sessions;
+                                
+                                // If using default value, indicate this to the user
+                                if (data.default) {
+                                    document.getElementById('remaining_session').value = data.remaining_sessions + " (default)";
+                                }
+                            } else {
+                                document.getElementById('remaining_session').value = "30 (default)";
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error fetching remaining sessions:', error);
+                            document.getElementById('remaining_session').value = "30 (default)";
+                        });
+                } else {
+                    // Use the provided remaining sessions value
+                    document.getElementById('remaining_session').value = remainingSessions;
+                }
+                
+                modal.classList.add('show');
+                document.body.style.overflow = 'hidden'; // Prevent scrolling behind modal
             }
             
             // Close warning modal
@@ -828,40 +909,6 @@ if (empty($labs)) {
                     warningModal.classList.remove('show');
                 });
             });
-            
-            // ...existing openSitInModal function and other code...
-            
-            function openSitInModal(studentId, studentName) {
-                document.getElementById('student_id').value = studentId;
-                document.getElementById('student_name').value = studentName;
-                
-                // Set a loading state
-                document.getElementById('remaining_session').value = "Loading...";
-                
-                // Fetch remaining sessions for this student using AJAX
-                fetch('get_remaining_sessions.php?student_id=' + encodeURIComponent(studentId))
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Network response was not ok');
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        if (data.success) {
-                            document.getElementById('remaining_session').value = data.remaining_sessions;
-                        } else {
-                            document.getElementById('remaining_session').value = "10"; // Default fallback
-                            console.error("Error getting remaining sessions:", data.message);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error fetching remaining sessions:', error);
-                        document.getElementById('remaining_session').value = "10"; // Default fallback
-                    });
-                
-                modal.classList.add('show');
-                document.body.style.overflow = 'hidden'; // Prevent scrolling behind modal
-            }
             
             // Close modal functions
             closeBtn.addEventListener('click', closeSitInModal);
@@ -874,21 +921,11 @@ if (empty($labs)) {
                 }
             });
             
-            // Show/hide other purpose input based on selection
-            purposeSelect.addEventListener('change', function() {
-                if (this.value === 'Others') {
-                    othersContainer.classList.remove('hidden');
-                } else {
-                    othersContainer.classList.add('hidden');
-                }
-            });
-            
             function closeSitInModal() {
                 modal.classList.remove('show');
                 document.body.style.overflow = ''; // Re-enable scrolling
                 // Reset form
                 document.getElementById('sitInForm').reset();
-                othersContainer.classList.add('hidden');
             }
 
             // Add auto-hide for alert messages after 5 seconds

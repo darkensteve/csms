@@ -28,5 +28,9 @@ ALTER TABLE `sit_in_sessions`
 -- IMPORTANT: ONLY run this once! Otherwise timestamps will be shifted multiple times
 UPDATE `sit_in_sessions` 
    SET `check_in_time` = CONVERT_TZ(`check_in_time`, '+00:00', '+08:00'),
-       `check_out_time` = CONVERT_TZ(`check_out_time`, '+00:00', '+08:00')
+       `check_out_time` = CASE 
+                           WHEN `check_out_time` IS NOT NULL 
+                           THEN CONVERT_TZ(`check_out_time`, '+00:00', '+08:00') 
+                           ELSE NULL 
+                          END
  WHERE `check_in_time` IS NOT NULL;

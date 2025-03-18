@@ -1,5 +1,5 @@
 <?php
-require_once 'includes/db_connection.php';
+require_once '../includes/db_connection.php';
 
 // SQL to create the students table
 $students_table = "
@@ -39,7 +39,7 @@ if ($conn->query($departments_table) === TRUE) {
 }
 
 echo "<p>Note: Run this file once to set up the database structure.</p>";
-echo "<p><a href='admin/search_student.php'>Go to Student Search</a></p>";
+echo "<p><a href='../students/search_student.php'>Go to Student Search</a></p>";
 
 $conn->close();
 ?>

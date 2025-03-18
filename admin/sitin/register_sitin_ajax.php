@@ -3,7 +3,7 @@
 date_default_timezone_set('Asia/Manila');
 
 // Include database connection
-require_once 'includes/db_connect.php';
+require_once '../includes/db_connect.php';
 
 // Start session
 session_start();
@@ -76,7 +76,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if ($update_stmt) {
                 $update_stmt->bind_param("s", $student_id);
-                $update_stmt->execute();
+                $update_result = $update_stmt->execute();
+                
+                // Check if the update was successful
+                if ($update_result && $update_stmt->affected_rows > 0) {
+                    // Session successfully deducted
+                    $response['remaining_sessions_updated'] = true;
+                } else {
+                    // No rows affected could mean student has 0 sessions
+                    $response['remaining_sessions_updated'] = false;
+                    $response['message'] .= ' Note: Could not deduct remaining session - student may have 0 sessions left.';
+                }
                 $update_stmt->close();
             }
             
