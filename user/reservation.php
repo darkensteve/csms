@@ -60,7 +60,53 @@ if ($result->num_rows > 0) {
 // Check if user has remaining sessions
 $canReserve = $remainingSessions > 0;
 
-// Form processing
+// Handle reservation cancellation
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['cancel_reservation'])) {
+    $reservation_id = $_POST['reservation_id'];
+    
+    // First get the computer_id associated with this reservation
+    $getComputer = $conn->prepare("SELECT computer_id FROM reservations WHERE reservation_id = ? AND user_id = ? AND status = 'pending'");
+    $getComputer->bind_param("ii", $reservation_id, $loggedInUserId);
+    $getComputer->execute();
+    $computerResult = $getComputer->get_result();
+    
+    if ($computerResult->num_rows > 0) {
+        $computerId = $computerResult->fetch_assoc()['computer_id'];
+        
+        // Update the reservation status to cancelled
+        $cancelStmt = $conn->prepare("UPDATE reservations SET status = 'cancelled' WHERE reservation_id = ? AND user_id = ?");
+        $cancelStmt->bind_param("ii", $reservation_id, $loggedInUserId);
+        
+        if ($cancelStmt->execute()) {
+            // Update the computer status back to available
+            if ($computerId) {
+                $updateComputer = $conn->prepare("UPDATE computers SET status = 'available' WHERE computer_id = ?");
+                $updateComputer->bind_param("i", $computerId);
+                $updateComputer->execute();
+            }
+            
+            // Restore the session that was used for this reservation
+            $updateSessions = $conn->prepare("UPDATE users SET remaining_sessions = remaining_sessions + 1 WHERE user_id = ?");
+            $updateSessions->bind_param("i", $loggedInUserId);
+            $updateSessions->execute();
+            
+            // Update the session variable for real-time display
+            $remainingSessions += 1;
+            $canReserve = true;
+            
+            $message = "Your reservation has been cancelled successfully.";
+            $messageType = "success";
+        } else {
+            $message = "Error cancelling reservation: " . $conn->error;
+            $messageType = "error";
+        }
+    } else {
+        $message = "Reservation not found or cannot be cancelled.";
+        $messageType = "error";
+    }
+}
+
+// Form processing for new reservation
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation'])) {
     // Check if user has remaining sessions
     if (!$canReserve) {
@@ -69,6 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
     } else {
         // Get form data
         $labId = $_POST['lab_id'];
+        $computerId = isset($_POST['computer_id']) ? $_POST['computer_id'] : null;
         
         // Always use today's date
         $date = date('Y-m-d');
@@ -109,15 +156,55 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             $timeErrorMessage = "Time must be between 8 AM and 6 PM.";
         }
         
-        if (!$isTimeValid) {
+        // Validate computer selection
+        $isComputerValid = true;
+        if (empty($computerId)) {
+            $isComputerValid = false;
+            $computerErrorMessage = "Please select a computer.";
+        } else {
+            // Check if the computer is still available
+            $checkComputer = $conn->prepare("SELECT status FROM computers WHERE computer_id = ? AND lab_id = ?");
+            $checkComputer->bind_param("ii", $computerId, $labId);
+            $checkComputer->execute();
+            $computerResult = $checkComputer->get_result();
+            
+            if ($computerResult->num_rows == 0 || $computerResult->fetch_assoc()['status'] !== 'available') {
+                $isComputerValid = false;
+                $computerErrorMessage = "The selected computer is no longer available. Please choose another.";
+            }
+        }
+        
+        // Check if user already has an active reservation for today
+        $hasActiveReservation = false;
+        $activeReservationQuery = $conn->prepare("SELECT COUNT(*) as count FROM reservations WHERE user_id = ? AND reservation_date = ? AND status IN ('pending', 'approved')");
+        $activeReservationQuery->bind_param("is", $loggedInUserId, $date);
+        $activeReservationQuery->execute();
+        $activeReservationResult = $activeReservationQuery->get_result();
+        
+        if ($activeReservationResult->fetch_assoc()['count'] > 0) {
+            $hasActiveReservation = true;
+        }
+        
+        if ($hasActiveReservation) {
+            $message = "You already have an active reservation for today. You can only have one active reservation per day.";
+            $messageType = "error";
+        } elseif (!$isTimeValid) {
             $message = "Invalid time: " . $timeErrorMessage;
+            $messageType = "error";
+        } elseif (!$isComputerValid) {
+            $message = $computerErrorMessage;
             $messageType = "error";
         } else {
             // Insert reservation
-            $stmt = $conn->prepare("INSERT INTO reservations (user_id, lab_id, reservation_date, time_slot, purpose, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("iisssss", $loggedInUserId, $labId, $date, $timeSlot, $purpose, $status, $createdAt);
+            $stmt = $conn->prepare("INSERT INTO reservations (user_id, lab_id, computer_id, reservation_date, time_slot, purpose, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("iiisssss", $loggedInUserId, $labId, $computerId, $date, $timeSlot, $purpose, $status, $createdAt);
             
             if ($stmt->execute()) {
+                // If successful, mark the computer as reserved
+                $updateComputer = $conn->prepare("UPDATE computers SET status = 'reserved' WHERE computer_id = ?");
+                $updateComputer->bind_param("i", $computerId);
+                $updateComputer->execute();
+                
                 // Decrease remaining sessions
                 $newRemainingCount = $remainingSessions - 1;
                 $updateStmt = $conn->prepare("UPDATE users SET remaining_sessions = ? WHERE user_id = ?");
@@ -160,8 +247,10 @@ if (empty($labs)) {
 $pendingReservations = [];
 if (!$setupNeeded) {
     try {
-        $stmt = $conn->prepare("SELECT r.*, l.lab_name FROM reservations r 
+        $stmt = $conn->prepare("SELECT r.*, l.lab_name, c.computer_number, c.status as computer_status
+                            FROM reservations r 
                             JOIN labs l ON r.lab_id = l.lab_id 
+                            LEFT JOIN computers c ON r.computer_id = c.computer_id
                             WHERE r.user_id = ? AND r.status IN ('pending', 'approved') 
                             ORDER BY r.reservation_date ASC, r.time_slot ASC");
         $stmt->bind_param("i", $loggedInUserId);
@@ -184,7 +273,14 @@ $programmingPurposes = [
     'Java Programming',
     'C# Programming',
     'PHP Programming',
-    'ASP.net Programming'
+    'ASP.net Programming',
+    'Python Programming',
+    'Web Development',
+    'Database Design',
+    'Mobile App Development',
+    'Research',
+    'Assignment Completion',
+    'Project Work'
 ];
 
 // Check for available slots - add error handling
@@ -208,6 +304,32 @@ function isSlotAvailable($labId, $date, $timeSlot, $conn) {
     } catch (Exception $e) {
         // Default to showing slot as available if there's a database error
         return true;
+    }
+}
+
+// AJAX handler for getting available computers
+if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
+    $lab_id = (int)$_GET['lab_id'];
+    $availableComputers = [];
+    
+    try {
+        $stmt = $conn->prepare("SELECT computer_id, computer_number FROM computers WHERE lab_id = ? AND status = 'available' ORDER BY computer_number");
+        $stmt->bind_param("i", $lab_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        while ($row = $result->fetch_assoc()) {
+            $availableComputers[] = $row;
+        }
+        
+        // Return JSON response
+        header('Content-Type: application/json');
+        echo json_encode($availableComputers);
+        exit;
+    } catch (Exception $e) {
+        header('Content-Type: application/json');
+        echo json_encode(['error' => $e->getMessage()]);
+        exit;
     }
 }
 ?>
@@ -286,6 +408,49 @@ function isSlotAvailable($labId, $date, $timeSlot, $conn) {
             background-color: #f3f4f6;
             color: #9ca3af;
             cursor: not-allowed;
+        }
+        
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .status-pending {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        
+        .status-approved {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        
+        .status-used {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .status-rejected {
+            background-color: #fee2e2;
+            color: #b91c1c;
+        }
+        
+        .status-cancelled {
+            background-color: #f3f4f6;
+            color: #4b5563;
+        }
+        
+        .reservation-card {
+            transition: all 0.3s ease;
+        }
+        
+        .reservation-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
     </style>
 </head>
@@ -429,9 +594,23 @@ function isSlotAvailable($labId, $date, $timeSlot, $conn) {
                             <select id="lab_id" name="lab_id" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500" <?php echo !$canReserve ? 'disabled' : ''; ?> required>
                                 <option value="">Select a laboratory</option>
                                 <?php foreach ($labs as $lab): ?>
-                                <option value="<?php echo $lab['lab_id']; ?>"><?php echo $lab['lab_name'] . ' (' . $lab['location'] . ')'; ?></option>
+                                <option value="<?php echo $lab['lab_id']; ?>"><?php echo $lab['lab_name'] . (isset($lab['location']) ? ' (' . $lab['location'] . ')' : ''); ?></option>
                                 <?php endforeach; ?>
                             </select>
+                            <p class="text-xs text-gray-500 mt-1">Select a lab to see available computers</p>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="computer_id" class="block text-sm font-medium text-gray-700 mb-1">Select Available Computer</label>
+                            <select id="computer_id" name="computer_id" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500" <?php echo !$canReserve ? 'disabled' : ''; ?> required>
+                                <option value="">Please select a lab first</option>
+                            </select>
+                            <div id="computer-loading" class="text-sm text-gray-500 mt-1 hidden">
+                                <i class="fas fa-spinner fa-spin mr-1"></i> Loading available computers...
+                            </div>
+                            <p id="no-computers-message" class="text-xs text-red-500 mt-1 hidden">
+                                No available computers in this lab. Please select another lab.
+                            </p>
                         </div>
                         
                         <div class="mb-4">
@@ -486,10 +665,10 @@ function isSlotAvailable($labId, $date, $timeSlot, $conn) {
                     <?php else: ?>
                         <div class="space-y-4">
                             <?php foreach ($pendingReservations as $reservation): ?>
-                                <div class="border border-gray-200 rounded-md p-4 hover:bg-gray-50 transition">
+                                <div class="border border-gray-200 rounded-md p-4 hover:bg-gray-50 transition reservation-card">
                                     <div class="flex items-center justify-between mb-2">
                                         <span class="font-medium text-primary-700"><?php echo $reservation['lab_name']; ?></span>
-                                        <span class="px-2 py-1 rounded-full text-xs font-medium <?php echo $reservation['status'] === 'approved' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'; ?>">
+                                        <span class="status-badge status-<?php echo $reservation['status']; ?>">
                                             <?php echo ucfirst($reservation['status']); ?>
                                         </span>
                                     </div>
@@ -504,10 +683,23 @@ function isSlotAvailable($labId, $date, $timeSlot, $conn) {
                                             <span><?php echo $reservation['time_slot']; ?></span>
                                         </div>
                                         <div class="flex">
+                                            <i class="fas fa-desktop w-5 text-gray-500"></i>
+                                            <span>Computer #<?php echo $reservation['computer_number'] ?? 'Not assigned'; ?></span>
+                                        </div>
+                                        <div class="flex">
                                             <i class="fas fa-comment w-5 text-gray-500"></i>
                                             <span class="line-clamp-1"><?php echo substr($reservation['purpose'], 0, 40) . (strlen($reservation['purpose']) > 40 ? '...' : ''); ?></span>
                                         </div>
                                     </div>
+                                    
+                                    <?php if ($reservation['status'] === 'pending'): ?>
+                                        <form action="reservation.php" method="POST" class="mt-4">
+                                            <input type="hidden" name="reservation_id" value="<?php echo $reservation['reservation_id']; ?>">
+                                            <button type="submit" name="cancel_reservation" class="px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors">
+                                                <i class="fas fa-times mr-1"></i> Cancel Reservation
+                                            </button>
+                                        </form>
+                                    <?php endif; ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -602,6 +794,65 @@ function isSlotAvailable($labId, $date, $timeSlot, $conn) {
         <?php if (!empty($message)): ?>
         showNotification("<?php echo $message; ?>", "<?php echo $messageType; ?>");
         <?php endif; ?>
+        
+        // Load available computers when lab is selected
+        document.getElementById('lab_id').addEventListener('change', function() {
+            const labId = this.value;
+            const computerSelect = document.getElementById('computer_id');
+            const loadingMessage = document.getElementById('computer-loading');
+            const noComputersMessage = document.getElementById('no-computers-message');
+            
+            // Reset computer dropdown
+            computerSelect.innerHTML = '<option value="">Loading computers...</option>';
+            computerSelect.disabled = true;
+            
+            // Show loading indicator
+            loadingMessage.classList.remove('hidden');
+            noComputersMessage.classList.add('hidden');
+            
+            if (labId) {
+                // Fetch available computers for selected lab
+                fetch(`reservation.php?get_computers=1&lab_id=${labId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        loadingMessage.classList.add('hidden');
+                        computerSelect.disabled = false;
+                        computerSelect.innerHTML = '';
+                        
+                        // Add default option
+                        const defaultOption = document.createElement('option');
+                        defaultOption.value = '';
+                        defaultOption.textContent = 'Select a computer';
+                        computerSelect.appendChild(defaultOption);
+                        
+                        if (data.length > 0) {
+                            // Add options for each available computer
+                            data.forEach(computer => {
+                                const option = document.createElement('option');
+                                option.value = computer.computer_id;
+                                option.textContent = `Computer #${computer.computer_number}`;
+                                computerSelect.appendChild(option);
+                            });
+                        } else {
+                            // Show message if no computers available
+                            noComputersMessage.classList.remove('hidden');
+                            defaultOption.textContent = 'No computers available';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching computers:', error);
+                        loadingMessage.classList.add('hidden');
+                        computerSelect.disabled = false;
+                        computerSelect.innerHTML = '<option value="">Error loading computers</option>';
+                        noComputersMessage.classList.remove('hidden');
+                    });
+            } else {
+                // Reset if no lab selected
+                loadingMessage.classList.add('hidden');
+                computerSelect.disabled = false;
+                computerSelect.innerHTML = '<option value="">Please select a lab first</option>';
+            }
+        });
     </script>
 </body>
 </html>

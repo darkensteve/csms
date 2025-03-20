@@ -51,26 +51,50 @@ if (isset($_POST['update_reservation'])) {
     $action = $_POST['action'];
     $new_status = ($action == 'approve') ? 'approved' : 'rejected';
     
+    // Get the computer_id associated with this reservation
+    $get_computer_query = "SELECT computer_id, lab_id FROM reservations WHERE reservation_id = ?";
+    $stmt_get = $conn->prepare($get_computer_query);
+    $computer_id = null;
+    $lab_id = null;
+    
+    if ($stmt_get) {
+        $stmt_get->bind_param("i", $reservation_id);
+        $stmt_get->execute();
+        $result = $stmt_get->get_result();
+        if ($row = $result->fetch_assoc()) {
+            $computer_id = $row['computer_id'];
+            $lab_id = $row['lab_id'];
+        }
+        $stmt_get->close();
+    }
+    
     // Update the reservation status
     $update_query = "UPDATE reservations SET status = ? WHERE reservation_id = ?";
     $stmt = $conn->prepare($update_query);
     if ($stmt) {
         $stmt->bind_param("si", $new_status, $reservation_id);
         if ($stmt->execute()) {
-            // If approved, also update the computer status if we have a computer_id
-            // Since the reservations table doesn't have computer_id, we'll remove this part
-            /*
-            if ($action == 'approve') {
-                $computer_id = $_POST['computer_id'];
-                $update_computer_query = "UPDATE computers SET status = 'reserved' WHERE computer_id = ?";
+            // If approved, update the computer status to 'used'
+            if ($action == 'approve' && $computer_id) {
+                $computer_status = 'used';
+                $update_computer_query = "UPDATE computers SET status = ? WHERE computer_id = ?";
                 $stmt_computer = $conn->prepare($update_computer_query);
                 if ($stmt_computer) {
-                    $stmt_computer->bind_param("i", $computer_id);
+                    $stmt_computer->bind_param("si", $computer_status, $computer_id);
+                    $stmt_computer->execute();
+                    $stmt_computer->close();
+                }
+            } else if ($action == 'reject' && $computer_id) {
+                // If rejected, set the computer back to 'available'
+                $computer_status = 'available';
+                $update_computer_query = "UPDATE computers SET status = ? WHERE computer_id = ?";
+                $stmt_computer = $conn->prepare($update_computer_query);
+                if ($stmt_computer) {
+                    $stmt_computer->bind_param("si", $computer_status, $computer_id);
                     $stmt_computer->execute();
                     $stmt_computer->close();
                 }
             }
-            */
             
             $messages[] = [
                 'type' => 'success',
@@ -99,12 +123,12 @@ if ($labs_result && $labs_result->num_rows > 0) {
 // Check if computers table exists, if not create it
 $table_check = $conn->query("SHOW TABLES LIKE 'computers'");
 if ($table_check->num_rows == 0) {
-    // Create computers table
+    // Create computers table with 'used' status option
     $create_computers_table = "CREATE TABLE `computers` (
         `computer_id` int(11) NOT NULL AUTO_INCREMENT,
         `lab_id` int(11) NOT NULL,
         `computer_number` int(11) NOT NULL,
-        `status` enum('available','reserved','maintenance') NOT NULL DEFAULT 'available',
+        `status` enum('available','reserved','used','maintenance') NOT NULL DEFAULT 'available',
         `last_updated` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
         PRIMARY KEY (`computer_id`),
         KEY `lab_id` (`lab_id`)
@@ -129,6 +153,16 @@ if ($table_check->num_rows == 0) {
             }
         }
     }
+} else {
+    // Check if 'used' status exists in the enum, if not alter the table
+    $check_enum = $conn->query("SHOW COLUMNS FROM computers LIKE 'status'");
+    if ($check_enum && $check_enum->num_rows > 0) {
+        $enum_info = $check_enum->fetch_assoc();
+        if (strpos($enum_info['Type'], 'used') === false) {
+            // Add 'used' to the enum
+            $conn->query("ALTER TABLE computers MODIFY status ENUM('available','reserved','used','maintenance') NOT NULL DEFAULT 'available'");
+        }
+    }
 }
 
 // Check if reservations table exists, if not create it
@@ -139,6 +173,7 @@ if ($table_check->num_rows == 0) {
         `reservation_id` INT(11) NOT NULL AUTO_INCREMENT,
         `user_id` INT(11) NOT NULL,
         `lab_id` INT(11) NOT NULL,
+        `computer_id` INT(11) DEFAULT NULL,
         `reservation_date` DATE NOT NULL,
         `time_slot` VARCHAR(50) NOT NULL,
         `purpose` TEXT NOT NULL,
@@ -148,6 +183,13 @@ if ($table_check->num_rows == 0) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
     
     $conn->query($create_reservations_table);
+} else {
+    // Check if computer_id column exists, if not add it
+    $check_column = $conn->query("SHOW COLUMNS FROM reservations LIKE 'computer_id'");
+    if ($check_column->num_rows == 0) {
+        // Add computer_id column
+        $conn->query("ALTER TABLE reservations ADD COLUMN computer_id INT(11) DEFAULT NULL AFTER lab_id");
+    }
 }
 
 // Filter parameters for logs
@@ -176,14 +218,16 @@ if ($selected_lab_id > 0) {
     }
 }
 
-// Fetch pending reservation requests - Fix the JOIN statementble
+// Fetch pending reservation requests with computer info
 $pending_reservations = [];
-$pending_query = "SELECT r.*, l.lab_name, u.IDNO as student_id, CONCAT(u.FIRSTNAME, ' ', u.MIDDLENAME, ' ', u.LASTNAME) as student_name
-                  FROM reservations r 
-                  JOIN labs l ON r.lab_id = l.lab_id
-                  JOIN users u ON r.user_id = u.USER_ID 
-                  WHERE r.status = 'pending' 
-                  ORDER BY r.created_at DESC";
+$pending_query = "SELECT r.*, l.lab_name, u.IDNO as student_id, CONCAT(u.FIRSTNAME, ' ', u.MIDDLENAME, ' ', u.LASTNAME) as student_name, 
+                 c.computer_number, c.status as computer_status
+                 FROM reservations r 
+                 JOIN labs l ON r.lab_id = l.lab_id
+                 JOIN users u ON r.user_id = u.USER_ID 
+                 LEFT JOIN computers c ON r.computer_id = c.computer_id
+                 WHERE r.status = 'pending' 
+                 ORDER BY r.created_at DESC";
 $pending_result = $conn->query($pending_query);
 if ($pending_result && $pending_result->num_rows > 0) {
     while ($reservation = $pending_result->fetch_assoc()) {
@@ -193,10 +237,12 @@ if ($pending_result && $pending_result->num_rows > 0) {
 
 // Fetch reservation logs with filtering - Add JOIN with users table
 $logs = [];
-$logs_query = "SELECT r.*, l.lab_name, u.IDNO as student_id, CONCAT(u.FIRSTNAME, ' ', u.MIDDLENAME, ' ', u.LASTNAME) as student_name
+$logs_query = "SELECT r.*, l.lab_name, u.IDNO as student_id, CONCAT(u.FIRSTNAME, ' ', u.MIDDLENAME, ' ', u.LASTNAME) as student_name,
+               c.computer_number 
                FROM reservations r 
                JOIN labs l ON r.lab_id = l.lab_id
                JOIN users u ON r.user_id = u.USER_ID
+               LEFT JOIN computers c ON r.computer_id = c.computer_id
                WHERE 1=1";
 
 // Apply filters
@@ -289,6 +335,11 @@ if ($logs_result && $logs_result->num_rows > 0) {
             border: 1px solid #ef4444;
         }
         
+        .computer-used {
+            background-color: #dbeafe;
+            border: 1px solid #3b82f6;
+        }
+        
         .computer-maintenance {
             background-color: #fef3c7;
             border: 1px solid #f59e0b;
@@ -357,25 +408,109 @@ if ($logs_result && $logs_result->num_rows > 0) {
                 max-height: 600px;
             }
         }
+        
+        /* Enhanced professional styling */
+        .section-card {
+            height: calc(100vh - 200px);
+            overflow-y: auto;
+            transition: all 0.3s ease;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .section-card:hover {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        
+        .section-header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-radius: 0.75rem 0.75rem 0 0;
+        }
+        
+        /* Enhanced table styling */
+        .data-table {
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+        }
+        
+        .data-table th {
+            background-color: #f9fafb;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 0.75rem;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .data-table td {
+            padding: 0.875rem 1rem;
+            vertical-align: top;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .data-table tr:hover {
+            background-color: #f9fafb;
+        }
+        
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+        
+        /* Improved action buttons */
+        .action-btn {
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        
+        .action-btn:hover {
+            transform: translateY(-1px);
+        }
+        
+        .action-btn-approve {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+        
+        .action-btn-approve:hover {
+            background-color: #a7f3d0;
+        }
+        
+        .action-btn-reject {
+            background-color: #fee2e2;
+            color: #b91c1c;
+        }
+        
+        .action-btn-reject:hover {
+            background-color: #fecaca;
+        }
+        
+        .action-btn-info {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .action-btn-info:hover {
+            background-color: #bfdbfe;
+        }
     </style>
 </head>
-<body class="font-sans h-screen flex flex-col">
-    <!-- Notification Section -->
-    <div id="notificationContainer">
-        <?php foreach ($messages as $message): ?>
-        <div class="notification <?php echo $message['type']; ?>">
-            <i class="fas fa-<?php echo $message['type'] == 'success' ? 'check-circle' : 'exclamation-circle'; ?> mr-2"></i>
-            <?php echo $message['text']; ?>
-        </div>
-        <?php endforeach; ?>
-    </div>
-
+<body class="font-sans min-h-screen flex flex-col">
     <!-- Navigation Bar -->
-    <header class="bg-primary-700 text-white shadow-lg">
+    <header class="bg-primary-700 text-white shadow-lg sticky top-0 z-50">
         <div class="container mx-auto">
             <nav class="flex items-center justify-between px-4 py-3">
                 <div class="flex items-center space-x-4">
-                    <a href="../admin.php" class="text-xl font-bold">Dashboard</a>
+                    <a href="../admin.php" class="text-xl font-bold">Admin Dashboard</a>
                 </div>
                 
                 <div class="flex items-center space-x-3">
@@ -464,6 +599,16 @@ if ($logs_result && $logs_result->num_rows > 0) {
             <i class="fas fa-calendar-check mr-2"></i> Reservation
         </a>
     </div>
+    
+    <!-- Notification messages -->
+    <?php if (!empty($messages)): ?>
+        <?php foreach ($messages as $message): ?>
+            <div class="notification <?php echo $message['type']; ?> show">
+                <i class="fas <?php echo $message['type'] === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'; ?>"></i>
+                <?php echo $message['text']; ?>
+            </div>
+        <?php endforeach; ?>
+    <?php endif; ?>
 
     <!-- Main Content -->
     <div class="flex-1 flex flex-col px-4 py-6 md:px-8 bg-gray-50">
@@ -473,10 +618,10 @@ if ($logs_result && $logs_result->num_rows > 0) {
             <p class="text-gray-600">Manage computer reservations, requests, and view activity logs</p>
         </div>
         
-        <!-- Three-column Layout for Desktop, Stack for Mobile -->
-        <div class="container mx-auto grid grid-cols-1 xl:grid-cols-3 gap-6">
-            <!-- Computer Control Section -->
-            <div class="bg-white rounded-xl shadow-md section-card">
+        <!-- Adjusted grid layout with different column spans -->
+        <div class="container mx-auto grid grid-cols-1 xl:grid-cols-5 gap-6">
+            <!-- Computer Control Section - 2 columns -->
+            <div class="xl:col-span-2 bg-white rounded-xl shadow-md section-card">
                 <div class="section-header bg-gradient-to-r from-primary-700 to-primary-900 text-white px-6 py-4 rounded-t-xl flex items-center justify-between">
                     <h2 class="text-lg font-semibold">Computer Control</h2>
                     <span class="bg-white bg-opacity-30 text-xs font-medium py-1 px-2 rounded-full">
@@ -508,7 +653,7 @@ if ($logs_result && $logs_result->num_rows > 0) {
                     </div>
                     
                     <!-- Computer Grid -->
-                    <div>
+                    <div id="computer-grid">
                         <h3 class="text-sm font-medium text-gray-700 mb-3 flex items-center">
                             <i class="fas fa-map-marker-alt text-primary-600 mr-2"></i>
                             <?php echo (isset($labs[$selected_lab_id])) ? htmlspecialchars($labs[$selected_lab_id]['lab_name']) : 'Select Laboratory'; ?>
@@ -531,6 +676,8 @@ if ($logs_result && $logs_result->num_rows > 0) {
                                                 <i class="fas fa-desktop text-green-600"></i>
                                             <?php elseif ($computer['status'] == 'reserved'): ?>
                                                 <i class="fas fa-desktop text-red-600"></i>
+                                            <?php elseif ($computer['status'] == 'used'): ?>
+                                                <i class="fas fa-desktop text-blue-600"></i>
                                             <?php else: ?>
                                                 <i class="fas fa-tools text-amber-600"></i>
                                             <?php endif; ?>
@@ -562,6 +709,10 @@ if ($logs_result && $logs_result->num_rows > 0) {
                             <span class="text-xs">Reserved</span>
                         </div>
                         <div class="flex items-center">
+                            <div class="w-3 h-3 bg-blue-200 border border-blue-600 rounded-full mr-1"></div>
+                            <span class="text-xs">In Use</span>
+                        </div>
+                        <div class="flex items-center">
                             <div class="w-3 h-3 bg-amber-200 border border-amber-600 rounded-full mr-1"></div>
                             <span class="text-xs">Maintenance</span>
                         </div>
@@ -569,8 +720,8 @@ if ($logs_result && $logs_result->num_rows > 0) {
                 </div>
             </div>
             
-            <!-- Reservation Requests Section -->
-            <div class="bg-white rounded-xl shadow-md section-card">
+            <!-- Reservation Requests Section - now spans 2 columns -->
+            <div class="xl:col-span-2 bg-white rounded-xl shadow-md section-card">
                 <div class="section-header bg-gradient-to-r from-primary-700 to-primary-900 text-white px-6 py-4 rounded-t-xl flex items-center justify-between">
                     <h2 class="text-lg font-semibold">Reservation Requests</h2>
                     <span class="bg-white bg-opacity-30 text-xs font-medium py-1 px-2 rounded-full">
@@ -580,48 +731,73 @@ if ($logs_result && $logs_result->num_rows > 0) {
                 <div class="p-5">
                     <?php if (count($pending_reservations) > 0): ?>
                         <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
+                            <table class="data-table min-w-full">
+                                <thead>
                                     <tr>
-                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
-                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
-                                        <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PC Request</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
+                                <tbody>
                                     <?php foreach ($pending_reservations as $reservation): ?>
-                                        <tr class="hover:bg-gray-50 transition-colors">
-                                            <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                                                #<?php echo $reservation['reservation_id']; ?>
+                                        <tr>
+                                            <td class="px-4 py-3">
+                                                <div class="font-medium text-gray-900"><?php echo htmlspecialchars($reservation['student_name']); ?></div>
+                                                <div class="text-xs text-gray-500"><?php echo htmlspecialchars($reservation['student_id']); ?></div>
+                                                <div class="text-xs text-primary-600 mt-1"><?php echo htmlspecialchars($reservation['lab_name']); ?></div>
                                             </td>
-                                            <td class="px-4 py-3 text-sm text-gray-500">
-                                                <div class="font-medium"><?php echo htmlspecialchars($reservation['student_name']); ?></div>
-                                                <div class="text-xs text-gray-400"><?php echo htmlspecialchars($reservation['student_id']); ?></div>
-                                                <div class="text-xs text-primary-600"><?php echo htmlspecialchars($reservation['lab_name']); ?></div>
+                                            <td class="px-4 py-3">
+                                                <div class="font-medium text-gray-700"><?php echo date('M d, Y', strtotime($reservation['reservation_date'])); ?></div>
+                                                <div class="text-xs text-gray-500"><?php echo $reservation['time_slot']; ?></div>
+                                                <div class="text-xs text-gray-400 mt-1 line-clamp-1 italic">"<?php echo htmlspecialchars($reservation['purpose']); ?>"</div>
                                             </td>
-                                            <td class="px-4 py-3 text-sm text-gray-500">
-                                                <div><?php echo date('M d, Y', strtotime($reservation['reservation_date'])); ?></div>
-                                                <div class="text-xs"><?php echo $reservation['time_slot']; ?></div>
-                                                <div class="text-xs text-gray-400 mt-1 line-clamp-1"><?php echo htmlspecialchars($reservation['purpose']); ?></div>
+                                            <td class="px-4 py-3">
+                                                <div class="flex flex-col">
+                                                    <span class="text-xs bg-gray-100 py-1 px-2 rounded inline-block w-fit mb-1">Res #<?php echo $reservation['reservation_id']; ?></span>
+                                                    <?php
+                                                    // Check for available computers in the requested lab
+                                                    $avail_query = "SELECT COUNT(*) as available FROM computers 
+                                                                    WHERE lab_id = ? AND status = 'available'";
+                                                    $stmt = $conn->prepare($avail_query);
+                                                    if ($stmt) {
+                                                        $stmt->bind_param("i", $reservation['lab_id']);
+                                                        $stmt->execute();
+                                                        $result = $stmt->get_result();
+                                                        $available = $result->fetch_assoc()['available'];
+                                                        $stmt->close();
+                                                        
+                                                        if ($available > 0) {
+                                                            echo "<span class='text-xs text-green-600 flex items-center'><i class='fas fa-check-circle mr-1'></i> {$available} PCs available</span>";
+                                                        } else {
+                                                            echo "<span class='text-xs text-red-600 flex items-center'><i class='fas fa-exclamation-circle mr-1'></i> No PCs available</span>";
+                                                        }
+                                                    }
+                                                    ?>
+                                                    <button onclick="viewAvailablePCs(<?php echo $reservation['lab_id']; ?>)" 
+                                                            class="text-xs text-blue-600 hover:underline mt-2 flex items-center">
+                                                        <i class="fas fa-desktop mr-1"></i> View available PCs
+                                                    </button>
+                                                </div>
                                             </td>
-                                            <td class="px-4 py-3 whitespace-nowrap text-sm font-medium">
-                                                <div class="flex gap-1">
+                                            <td class="px-4 py-3">
+                                                <div class="flex gap-2">
                                                     <form action="reservation.php" method="POST">
                                                         <input type="hidden" name="reservation_id" value="<?php echo $reservation['reservation_id']; ?>">
                                                         <input type="hidden" name="action" value="approve">
-                                                        <button type="submit" name="update_reservation" class="bg-green-100 text-green-700 hover:bg-green-200 p-1.5 rounded" title="Approve Request">
+                                                        <button type="submit" name="update_reservation" class="action-btn action-btn-approve" title="Approve Request">
                                                             <i class="fas fa-check"></i>
                                                         </button>
                                                     </form>
                                                     <form action="reservation.php" method="POST">
                                                         <input type="hidden" name="reservation_id" value="<?php echo $reservation['reservation_id']; ?>">
                                                         <input type="hidden" name="action" value="reject">
-                                                        <button type="submit" name="update_reservation" class="bg-red-100 text-red-700 hover:bg-red-200 p-1.5 rounded" title="Reject Request">
+                                                        <button type="submit" name="update_reservation" class="action-btn action-btn-reject" title="Reject Request">
                                                             <i class="fas fa-times"></i>
                                                         </button>
                                                     </form>
-                                                    <button class="bg-gray-100 text-gray-700 hover:bg-gray-200 p-1.5 rounded" title="View Details" onclick="alert('Purpose: <?php echo addslashes($reservation['purpose']); ?>')">
+                                                    <button class="action-btn action-btn-info" title="View Details" onclick="alert('Purpose: <?php echo addslashes($reservation['purpose']); ?>')">
                                                         <i class="fas fa-info"></i>
                                                     </button>
                                                 </div>
@@ -643,8 +819,8 @@ if ($logs_result && $logs_result->num_rows > 0) {
                 </div>
             </div>
             
-            <!-- Reservation Logs Section -->
-            <div class="bg-white rounded-xl shadow-md section-card">
+            <!-- Reservation Logs Section - 1 column -->
+            <div class="xl:col-span-1 bg-white rounded-xl shadow-md section-card">
                 <div class="section-header bg-gradient-to-r from-primary-700 to-primary-900 text-white px-6 py-4 rounded-t-xl flex items-center justify-between">
                     <h2 class="text-lg font-semibold">Activity Logs</h2>
                     <button onclick="document.getElementById('filter-form').classList.toggle('hidden')" class="bg-white bg-opacity-30 hover:bg-opacity-40 transition text-xs font-medium py-1 px-2 rounded-full">
@@ -691,17 +867,17 @@ if ($logs_result && $logs_result->num_rows > 0) {
                         </form>
                     </div>
                     
-                    <!-- Logs List -->
+                    <!-- Logs List - Enhanced styling -->
                     <?php if (count($logs) > 0): ?>
                         <div class="space-y-3">
                             <?php foreach ($logs as $log): ?>
-                                <div class="border border-gray-200 rounded-lg p-3 hover:shadow-sm transition">
+                                <div class="border border-gray-200 rounded-lg p-3 hover:shadow-sm transition bg-white">
                                     <div class="flex justify-between items-start mb-1">
                                         <div>
-                                            <span class="font-medium text-sm">#<?php echo $log['reservation_id']; ?></span>
+                                            <span class="font-medium text-sm text-gray-900">#<?php echo $log['reservation_id']; ?></span>
                                             <span class="text-xs text-gray-500 ml-2"><?php echo date('M d, Y', strtotime($log['reservation_date'])); ?></span>
                                         </div>
-                                        <span class="px-2 py-0.5 inline-flex text-xs leading-5 font-medium rounded-full 
+                                        <span class="px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full 
                                             <?php 
                                             switch($log['status']) {
                                                 case 'approved': echo 'bg-green-100 text-green-800'; break;
@@ -720,16 +896,16 @@ if ($logs_result && $logs_result->num_rows > 0) {
                                         <div class="text-xs text-gray-500 mx-2">•</div>
                                         <div class="text-xs text-gray-500"><?php echo $log['time_slot']; ?></div>
                                     </div>
-                                    <div class="flex items-center mt-1.5">
-                                        <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs">
+                                    <div class="flex items-center mt-2 bg-gray-50 p-1.5 rounded">
+                                        <div class="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 text-xs">
                                             <i class="fas fa-user"></i>
                                         </div>
                                         <div class="ml-2 text-sm truncate">
-                                            <span class="font-medium"><?php echo htmlspecialchars($log['student_name']); ?></span>
+                                            <span class="font-medium text-gray-800"><?php echo htmlspecialchars($log['student_name']); ?></span>
                                             <span class="text-xs text-gray-500 ml-1"><?php echo htmlspecialchars($log['student_id']); ?></span>
                                         </div>
                                     </div>
-                                    <div class="mt-2 text-xs text-gray-600 line-clamp-1">
+                                    <div class="mt-2 text-xs text-gray-600 line-clamp-1 bg-gray-50 p-1.5 rounded">
                                         <span class="font-medium">Purpose:</span> <?php echo htmlspecialchars($log['purpose']); ?>
                                     </div>
                                 </div>
@@ -789,7 +965,16 @@ if ($logs_result && $logs_result->num_rows > 0) {
         
         // Toggle computer status
         function toggleComputerStatus(computerId, currentStatus, labId, computerNumber) {
-            const newStatus = currentStatus === 'available' ? 'reserved' : 'available';
+            let newStatus;
+            
+            // Cycle through the three states: available → reserved → maintenance → available
+            if (currentStatus === 'available') {
+                newStatus = 'reserved';
+            } else if (currentStatus === 'reserved') {
+                newStatus = 'maintenance';
+            } else {
+                newStatus = 'available';
+            }
             
             if (confirm(`Do you want to change PC #${computerNumber} to ${newStatus}?`)) {
                 const form = document.createElement('form');
@@ -823,6 +1008,13 @@ if ($logs_result && $logs_result->num_rows > 0) {
                 document.body.appendChild(form);
                 form.submit();
             }
+        }
+        
+        // View available PCs in a lab
+        function viewAvailablePCs(labId) {
+            // Load available PCs for this lab
+            // This could be implemented with AJAX, but for simplicity we'll just redirect
+            window.location.href = `reservation.php?lab_id=${labId}#computer-grid`;
         }
         
         // Additional script for responsive behavior

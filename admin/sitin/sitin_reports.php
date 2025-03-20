@@ -471,6 +471,7 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
                                 <tbody class="divide-y divide-gray-200">
                                     <?php while ($row = $report_data->fetch_assoc()): ?>
                                         <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-2"><?= date('M d, Y', strtotime($row['check_in_time'])) ?></td>
                                             <td class="px-4 py-2">
                                                 <div><?= htmlspecialchars($row['FIRSTNAME'] . ' ' . $row['LASTNAME']) ?></div>
                                                 <div class="text-xs text-gray-500"><?= htmlspecialchars($row['student_id']) ?></div>
@@ -481,7 +482,6 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
                                             <td class="px-4 py-2">
                                                 <?= $row['check_out_time'] ? date('h:i A', strtotime($row['check_out_time'])) : 'Still Active' ?>
                                             </td>
-                                            <td class="px-4 py-2"><?= date('M d, Y', strtotime($row['check_in_time'])) ?></td>
                                         </tr>
                                     <?php endwhile; ?>
                                 </tbody>

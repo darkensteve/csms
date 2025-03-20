@@ -1062,7 +1062,7 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                 return;
             }
 
-            searchResultsContainer.classList.remove('hidden');
+            // Fix: searchResultsContainer is not defined - use the table instead
             const resultsTable = document.querySelector('#searchResultsTable tbody');
             resultsTable.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="flex items-center justify-center"><svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>Searching...</span></div></td></tr>';
 
@@ -1074,11 +1074,17 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                 },
                 body: 'search_term=' + encodeURIComponent(searchName)
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('Search response:', data); // Debug output
                 resultsTable.innerHTML = '';
                 
-                if (data.success && data.students.length > 0) {
+                if (data.success && data.students && data.students.length > 0) {
                     // Update result count
                     resultCount.textContent = data.students.length + ' found';
                     
@@ -1105,13 +1111,20 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                                 const mi = student.MI.endsWith('.') ? student.MI : student.MI + '.';
                                 studentName += ' ' + mi;
                             }
+                        } else if (student.LastName && student.FirstName) {
+                            // Alternative format for some database structures
+                            studentName = student.LastName + ', ' + student.FirstName;
+                            if (student.MiddleName) {
+                                const middleInitial = student.MiddleName.charAt(0) + '.';
+                                studentName += ' ' + middleInitial;
+                            }
                         } else {
                             // Fallback if name fields are in different format
-                            studentName = student.fullname || 'Unknown';
+                            studentName = student.fullname || student.username || 'Unknown';
                         }
 
                         // Get student ID with fallback
-                        const studentId = student.id || student.IDNO || student.student_id || 'N/A';
+                        const studentId = student.id || student.IDNO || student.idNo || student.student_id || 'N/A';
 
                         // Create cells
                         const idCell = document.createElement('td');
@@ -1157,20 +1170,17 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
                         resultsTable.appendChild(row);
                     });
                     
-                    searchResultsContainer.classList.remove('hidden');
                     noResultsMessage.classList.add('hidden');
                 } else {
                     // Show no results message
                     resultCount.textContent = '0 found';
-                    searchResultsContainer.classList.remove('hidden');
                     noResultsMessage.classList.remove('hidden');
                 }
             })
             .catch(error => {
                 console.error('Error searching students:', error);
-                resultsTable.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-red-500"><i class="fas fa-exclamation-circle mr-2"></i> Error searching students.</td></tr>';
+                resultsTable.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-red-500"><i class="fas fa-exclamation-circle mr-2"></i> Error searching students. Please try again.</td></tr>';
                 resultCount.textContent = 'Error';
-                searchResultsContainer.classList.remove('hidden');
                 noResultsMessage.classList.add('hidden');
             });
         });
