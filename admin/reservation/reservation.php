@@ -52,10 +52,11 @@ if (isset($_POST['update_reservation'])) {
     $new_status = ($action == 'approve') ? 'approved' : 'rejected';
     
     // Get the computer_id associated with this reservation
-    $get_computer_query = "SELECT computer_id, lab_id FROM reservations WHERE reservation_id = ?";
+    $get_computer_query = "SELECT computer_id, lab_id, user_id FROM reservations WHERE reservation_id = ?";
     $stmt_get = $conn->prepare($get_computer_query);
     $computer_id = null;
     $lab_id = null;
+    $user_id = null;
     
     if ($stmt_get) {
         $stmt_get->bind_param("i", $reservation_id);
@@ -64,6 +65,7 @@ if (isset($_POST['update_reservation'])) {
         if ($row = $result->fetch_assoc()) {
             $computer_id = $row['computer_id'];
             $lab_id = $row['lab_id'];
+            $user_id = $row['user_id'];
         }
         $stmt_get->close();
     }
@@ -74,9 +76,9 @@ if (isset($_POST['update_reservation'])) {
     if ($stmt) {
         $stmt->bind_param("si", $new_status, $reservation_id);
         if ($stmt->execute()) {
-            // If approved, update the computer status to 'used'
+            // If approved, update the computer status to 'reserved'
             if ($action == 'approve' && $computer_id) {
-                $computer_status = 'used';
+                $computer_status = 'reserved';
                 $update_computer_query = "UPDATE computers SET status = ? WHERE computer_id = ?";
                 $stmt_computer = $conn->prepare($update_computer_query);
                 if ($stmt_computer) {
@@ -84,6 +86,28 @@ if (isset($_POST['update_reservation'])) {
                     $stmt_computer->execute();
                     $stmt_computer->close();
                 }
+                
+                // Also get the student's details for the message
+                $get_student_query = "SELECT idNo, firstName, lastName FROM users WHERE user_id = ?";
+                $stmt_student = $conn->prepare($get_student_query);
+                $student_name = '';
+                $student_id = '';
+                
+                if ($stmt_student) {
+                    $stmt_student->bind_param("i", $user_id);
+                    $stmt_student->execute();
+                    $student_result = $stmt_student->get_result();
+                    if ($student_row = $student_result->fetch_assoc()) {
+                        $student_name = $student_row['firstName'] . ' ' . $student_row['lastName'];
+                        $student_id = $student_row['idNo'];
+                    }
+                    $stmt_student->close();
+                }
+                
+                $messages[] = [
+                    'type' => 'success',
+                    'text' => "Reservation #$reservation_id has been approved. Computer #{$computer_id} is now reserved for student {$student_name} (ID: {$student_id})."
+                ];
             } else if ($action == 'reject' && $computer_id) {
                 // If rejected, set the computer back to 'available'
                 $computer_status = 'available';
@@ -94,12 +118,12 @@ if (isset($_POST['update_reservation'])) {
                     $stmt_computer->execute();
                     $stmt_computer->close();
                 }
+                
+                $messages[] = [
+                    'type' => 'success',
+                    'text' => "Reservation #$reservation_id has been rejected. Computer #{$computer_id} has been set back to available."
+                ];
             }
-            
-            $messages[] = [
-                'type' => 'success',
-                'text' => "Reservation #$reservation_id has been $new_status"
-            ];
         } else {
             $messages[] = [
                 'type' => 'error',
@@ -158,9 +182,19 @@ if ($table_check->num_rows == 0) {
     $check_enum = $conn->query("SHOW COLUMNS FROM computers LIKE 'status'");
     if ($check_enum && $check_enum->num_rows > 0) {
         $enum_info = $check_enum->fetch_assoc();
+        $need_update = false;
+        
+        if (strpos($enum_info['Type'], 'pending') === false) {
+            $need_update = true;
+        }
+        
         if (strpos($enum_info['Type'], 'used') === false) {
-            // Add 'used' to the enum
-            $conn->query("ALTER TABLE computers MODIFY status ENUM('available','reserved','used','maintenance') NOT NULL DEFAULT 'available'");
+            $need_update = true;
+        }
+        
+        if ($need_update) {
+            // Add 'pending' and 'used' to the enum
+            $conn->query("ALTER TABLE computers MODIFY status ENUM('available','pending','reserved','used','maintenance') NOT NULL DEFAULT 'available'");
         }
     }
 }
@@ -218,13 +252,13 @@ if ($selected_lab_id > 0) {
     }
 }
 
-// Fetch pending reservation requests with computer info
+// Fetch pending reservation requests with computer info - Updated to include computer number
 $pending_reservations = [];
-$pending_query = "SELECT r.*, l.lab_name, u.IDNO as student_id, CONCAT(u.FIRSTNAME, ' ', u.MIDDLENAME, ' ', u.LASTNAME) as student_name, 
+$pending_query = "SELECT r.*, l.lab_name, u.idNo as student_id, CONCAT(u.firstName, ' ', u.lastName) as student_name, 
                  c.computer_number, c.status as computer_status
                  FROM reservations r 
                  JOIN labs l ON r.lab_id = l.lab_id
-                 JOIN users u ON r.user_id = u.USER_ID 
+                 JOIN users u ON r.user_id = u.user_id 
                  LEFT JOIN computers c ON r.computer_id = c.computer_id
                  WHERE r.status = 'pending' 
                  ORDER BY r.created_at DESC";
@@ -343,6 +377,11 @@ if ($logs_result && $logs_result->num_rows > 0) {
         .computer-maintenance {
             background-color: #fef3c7;
             border: 1px solid #f59e0b;
+        }
+        
+        .computer-pending {
+            background-color: #fef9c3;
+            border: 1px solid #facc15;
         }
         
         .notification {
@@ -634,8 +673,7 @@ if ($logs_result && $logs_result->num_rows > 0) {
                         <form action="reservation.php" method="GET" class="flex flex-wrap gap-3">
                             <div class="flex-1">
                                 <label for="lab_id" class="block text-sm font-medium text-gray-700 mb-1">Select Laboratory</label>
-                                <select id="lab_id" name="lab_id" onchange="this.form.submit()" 
-                                    class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm">
+                                <select id="lab_id" name="lab_id" onchange="this.form.submit()" class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm">
                                     <?php foreach ($labs as $lab): ?>
                                         <option value="<?php echo $lab['lab_id']; ?>" <?php echo ($selected_lab_id == $lab['lab_id']) ? 'selected' : ''; ?>>
                                             <?php echo htmlspecialchars($lab['lab_name']); ?> 
@@ -653,50 +691,50 @@ if ($logs_result && $logs_result->num_rows > 0) {
                     </div>
                     
                     <!-- Computer Grid -->
-                    <div id="computer-grid">
-                        <h3 class="text-sm font-medium text-gray-700 mb-3 flex items-center">
-                            <i class="fas fa-map-marker-alt text-primary-600 mr-2"></i>
-                            <?php echo (isset($labs[$selected_lab_id])) ? htmlspecialchars($labs[$selected_lab_id]['lab_name']) : 'Select Laboratory'; ?>
-                        </h3>
+                    <h3 class="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                        <i class="fas fa-map-marker-alt text-primary-600 mr-2"></i>
+                        <?php echo (isset($labs[$selected_lab_id])) ? htmlspecialchars($labs[$selected_lab_id]['lab_name']) : 'Select Laboratory'; ?>
+                    </h3>
                         
-                        <?php if (count($computers) > 0): ?>
-                            <div class="computer-grid">
-                                <?php foreach ($computers as $computer): ?>
-                                    <div class="computer-item computer-<?php echo $computer['status']; ?>" 
-                                         data-id="<?php echo $computer['computer_id']; ?>"
-                                         data-status="<?php echo $computer['status']; ?>"
-                                         onclick="toggleComputerStatus(
-                                             <?php echo $computer['computer_id']; ?>, 
-                                             '<?php echo $computer['status']; ?>', 
-                                             <?php echo $selected_lab_id; ?>,
-                                             <?php echo $computer['computer_number']; ?>
-                                         )">
-                                        <div class="text-xl">
-                                            <?php if ($computer['status'] == 'available'): ?>
-                                                <i class="fas fa-desktop text-green-600"></i>
-                                            <?php elseif ($computer['status'] == 'reserved'): ?>
-                                                <i class="fas fa-desktop text-red-600"></i>
-                                            <?php elseif ($computer['status'] == 'used'): ?>
-                                                <i class="fas fa-desktop text-blue-600"></i>
-                                            <?php else: ?>
-                                                <i class="fas fa-tools text-amber-600"></i>
-                                            <?php endif; ?>
-                                        </div>
-                                        <div class="font-medium text-sm mt-1">PC #<?php echo $computer['computer_number']; ?></div>
-                                        <div class="text-xs mt-0.5 capitalize text-gray-600"><?php echo $computer['status']; ?></div>
+                    <?php if (count($computers) > 0): ?>
+                        <div class="computer-grid">
+                            <?php foreach ($computers as $computer): ?>
+                                <div class="computer-item computer-<?php echo $computer['status']; ?>" 
+                                     data-id="<?php echo $computer['computer_id']; ?>"
+                                     data-status="<?php echo $computer['status']; ?>"
+                                     onclick="toggleComputerStatus(
+                                         <?php echo $computer['computer_id']; ?>, 
+                                         '<?php echo $computer['status']; ?>', 
+                                         <?php echo $selected_lab_id; ?>,
+                                         <?php echo $computer['computer_number']; ?>
+                                     )">
+                                    <div class="text-xl">
+                                        <?php if ($computer['status'] == 'available'): ?>
+                                            <i class="fas fa-desktop text-green-600"></i>
+                                        <?php elseif ($computer['status'] == 'reserved'): ?>
+                                            <i class="fas fa-desktop text-red-600"></i>
+                                        <?php elseif ($computer['status'] == 'used'): ?>
+                                            <i class="fas fa-desktop text-blue-600"></i>
+                                        <?php elseif ($computer['status'] == 'pending'): ?>
+                                            <i class="fas fa-desktop text-yellow-600"></i>
+                                        <?php else: ?>
+                                            <i class="fas fa-tools text-amber-600"></i>
+                                        <?php endif; ?>
                                     </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php else: ?>
-                            <div class="text-center py-6 bg-gray-50 rounded-lg">
-                                <div class="text-gray-400 text-4xl mb-3">
-                                    <i class="fas fa-laptop"></i>
+                                    <div class="font-medium text-sm mt-1">PC #<?php echo $computer['computer_number']; ?></div>
+                                    <div class="text-xs mt-0.5 capitalize text-gray-600"><?php echo $computer['status']; ?></div>
                                 </div>
-                                <h3 class="text-base font-medium text-gray-900 mb-1">No computers found</h3>
-                                <p class="text-gray-500 text-sm">Select a laboratory or add computers</p>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="text-center py-6 bg-gray-50 rounded-lg">
+                            <div class="text-gray-400 text-4xl mb-3">
+                                <i class="fas fa-laptop"></i>
                             </div>
-                        <?php endif; ?>
-                    </div>
+                            <h3 class="text-base font-medium text-gray-900 mb-1">No computers found</h3>
+                            <p class="text-gray-500 text-sm">Select a laboratory or add computers</p>
+                        </div>
+                    <?php endif; ?>
                     
                     <!-- Legend -->
                     <div class="flex flex-wrap gap-3 justify-center mt-5 pt-4 border-t border-gray-100">
@@ -715,6 +753,10 @@ if ($logs_result && $logs_result->num_rows > 0) {
                         <div class="flex items-center">
                             <div class="w-3 h-3 bg-amber-200 border border-amber-600 rounded-full mr-1"></div>
                             <span class="text-xs">Maintenance</span>
+                        </div>
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 bg-yellow-200 border border-yellow-600 rounded-full mr-1"></div>
+                            <span class="text-xs">Pending</span>
                         </div>
                     </div>
                 </div>
@@ -746,7 +788,6 @@ if ($logs_result && $logs_result->num_rows > 0) {
                                             <td class="px-4 py-3">
                                                 <div class="font-medium text-gray-900"><?php echo htmlspecialchars($reservation['student_name']); ?></div>
                                                 <div class="text-xs text-gray-500"><?php echo htmlspecialchars($reservation['student_id']); ?></div>
-                                                <div class="text-xs text-primary-600 mt-1"><?php echo htmlspecialchars($reservation['lab_name']); ?></div>
                                             </td>
                                             <td class="px-4 py-3">
                                                 <div class="font-medium text-gray-700"><?php echo date('M d, Y', strtotime($reservation['reservation_date'])); ?></div>
@@ -756,10 +797,28 @@ if ($logs_result && $logs_result->num_rows > 0) {
                                             <td class="px-4 py-3">
                                                 <div class="flex flex-col">
                                                     <span class="text-xs bg-gray-100 py-1 px-2 rounded inline-block w-fit mb-1">Res #<?php echo $reservation['reservation_id']; ?></span>
+                                                    
+                                                    <!-- Display requested computer -->
+                                                    <?php if ($reservation['computer_id']): ?>
+                                                    <span class="text-xs bg-blue-50 text-blue-700 py-1 px-2 rounded inline-block w-fit mb-1">
+                                                        <i class="fas fa-desktop mr-1"></i> Computer #<?php echo $reservation['computer_number']; ?>
+                                                    </span>
+                                                    
+                                                    <?php
+                                                    // Check computer current status
+                                                    if ($reservation['computer_status'] === 'available') {
+                                                        echo "<span class='text-xs text-green-600 flex items-center'><i class='fas fa-check-circle mr-1'></i> Computer is available</span>";
+                                                    } else {
+                                                        echo "<span class='text-xs text-red-600 flex items-center'><i class='fas fa-exclamation-circle mr-1'></i> Computer status: {$reservation['computer_status']}</span>";
+                                                    }
+                                                    ?>
+                                                    <?php else: ?>
+                                                    <span class="text-xs text-gray-500">No specific computer requested</span>
+                                                    <?php endif; ?>
+                                                    
                                                     <?php
                                                     // Check for available computers in the requested lab
-                                                    $avail_query = "SELECT COUNT(*) as available FROM computers 
-                                                                    WHERE lab_id = ? AND status = 'available'";
+                                                    $avail_query = "SELECT COUNT(*) as available FROM computers WHERE lab_id = ? AND status = 'available'";
                                                     $stmt = $conn->prepare($avail_query);
                                                     if ($stmt) {
                                                         $stmt->bind_param("i", $reservation['lab_id']);
@@ -768,36 +827,29 @@ if ($logs_result && $logs_result->num_rows > 0) {
                                                         $available = $result->fetch_assoc()['available'];
                                                         $stmt->close();
                                                         
-                                                        if ($available > 0) {
-                                                            echo "<span class='text-xs text-green-600 flex items-center'><i class='fas fa-check-circle mr-1'></i> {$available} PCs available</span>";
-                                                        } else {
-                                                            echo "<span class='text-xs text-red-600 flex items-center'><i class='fas fa-exclamation-circle mr-1'></i> No PCs available</span>";
-                                                        }
+                                                        echo "<span class='text-xs text-gray-600 flex items-center mt-1'><i class='fas fa-info-circle mr-1'></i> {$available} PCs available in this lab</span>";
                                                     }
                                                     ?>
-                                                    <button onclick="viewAvailablePCs(<?php echo $reservation['lab_id']; ?>)" 
-                                                            class="text-xs text-blue-600 hover:underline mt-2 flex items-center">
-                                                        <i class="fas fa-desktop mr-1"></i> View available PCs
-                                                    </button>
                                                 </div>
                                             </td>
                                             <td class="px-4 py-3">
                                                 <div class="flex gap-2">
-                                                    <form action="reservation.php" method="POST">
+                                                    <form action="reservation.php" method="POST" onsubmit="return confirm('Are you sure you want to approve this reservation?');">
                                                         <input type="hidden" name="reservation_id" value="<?php echo $reservation['reservation_id']; ?>">
                                                         <input type="hidden" name="action" value="approve">
                                                         <button type="submit" name="update_reservation" class="action-btn action-btn-approve" title="Approve Request">
                                                             <i class="fas fa-check"></i>
                                                         </button>
                                                     </form>
-                                                    <form action="reservation.php" method="POST">
+                                                    <form action="reservation.php" method="POST" onsubmit="return confirm('Are you sure you want to reject this reservation?');">
                                                         <input type="hidden" name="reservation_id" value="<?php echo $reservation['reservation_id']; ?>">
                                                         <input type="hidden" name="action" value="reject">
                                                         <button type="submit" name="update_reservation" class="action-btn action-btn-reject" title="Reject Request">
                                                             <i class="fas fa-times"></i>
                                                         </button>
                                                     </form>
-                                                    <button class="action-btn action-btn-info" title="View Details" onclick="alert('Purpose: <?php echo addslashes($reservation['purpose']); ?>')">
+                                                    <button class="action-btn action-btn-info" title="View Details" 
+                                                        onclick="alert('Purpose: <?php echo addslashes($reservation['purpose']); ?>\nLab: <?php echo addslashes($reservation['lab_name']); ?>\nComputer: #<?php echo $reservation['computer_number'] ?: 'Not specified'; ?>')">
                                                         <i class="fas fa-info"></i>
                                                     </button>
                                                 </div>
@@ -924,7 +976,7 @@ if ($logs_result && $logs_result->num_rows > 0) {
             </div>
         </div>
     </div>
-
+    
     <footer class="bg-white border-t border-gray-200 py-3">
         <div class="container mx-auto px-4 text-center text-gray-500 text-sm">
             &copy; 2024 SitIn System - Admin Dashboard. All rights reserved.
@@ -941,7 +993,7 @@ if ($logs_result && $logs_result->num_rows > 0) {
         function toggleUserDropdown() {
             document.getElementById('userMenu').classList.toggle('hidden');
         }
-
+        
         // Close user dropdown when clicking outside
         window.addEventListener('click', function(e) {
             if (!document.getElementById('userDropdown').contains(e.target)) {
@@ -986,7 +1038,7 @@ if ($logs_result && $logs_result->num_rows > 0) {
                 computerIdInput.name = 'toggle_computer';
                 computerIdInput.value = 'true';
                 form.appendChild(computerIdInput);
-                
+                   
                 const computerIdField = document.createElement('input');
                 computerIdField.type = 'hidden';
                 computerIdField.name = 'computer_id';
@@ -998,7 +1050,7 @@ if ($logs_result && $logs_result->num_rows > 0) {
                 newStatusInput.name = 'new_status';
                 newStatusInput.value = newStatus;
                 form.appendChild(newStatusInput);
-                
+                        
                 const labIdInput = document.createElement('input');
                 labIdInput.type = 'hidden';
                 labIdInput.name = 'lab_id';

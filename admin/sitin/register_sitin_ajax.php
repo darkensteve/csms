@@ -53,6 +53,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $check_stmt->close();
     }
     
+    // Check if student has an approved reservation
+    $reservation_id = null;
+    $check_reservation = $conn->prepare("
+        SELECT r.reservation_id, r.computer_id, r.lab_id, r.purpose
+        FROM reservations r
+        JOIN users u ON r.user_id = u.user_id
+        WHERE u.idNo = ? AND r.status = 'approved' AND DATE(r.reservation_date) = CURDATE()
+        LIMIT 1
+    ");
+    
+    if ($check_reservation) {
+        $check_reservation->bind_param("s", $student_id);
+        $check_reservation->execute();
+        $res_result = $check_reservation->get_result();
+        
+        if ($res_result->num_rows > 0) {
+            $reservation_data = $res_result->fetch_assoc();
+            
+            // Use the reserved computer and lab
+            $computer_id = $reservation_data['computer_id'];
+            $lab_id = $reservation_data['lab_id'];
+            $reservation_id = $reservation_data['reservation_id'];
+            
+            // Use the reservation purpose if none provided
+            if (empty($purpose) && !empty($reservation_data['purpose'])) {
+                $purpose = $reservation_data['purpose'];
+            }
+        }
+    }
+    
     // Get current timestamp for check-in
     $check_in_time = date('Y-m-d H:i:s');
     
@@ -60,35 +90,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $admin_id = isset($_SESSION['admin_id']) ? $_SESSION['admin_id'] : null;
     
     // Insert the new sit-in record
-    $insert_query = "INSERT INTO sit_in_sessions (student_id, student_name, lab_id, purpose, check_in_time, status, admin_id) 
-                     VALUES (?, ?, ?, ?, ?, 'active', ?)";
+    $insert_query = "INSERT INTO sit_in_sessions (student_id, student_name, lab_id, purpose, check_in_time, status, admin_id, computer_id) 
+                     VALUES (?, ?, ?, ?, ?, 'active', ?, ?)";
     $insert_stmt = $conn->prepare($insert_query);
     
     if ($insert_stmt) {
-        $insert_stmt->bind_param("ssissi", $student_id, $student_name, $lab_id, $purpose, $check_in_time, $admin_id);
+        $computer_id = isset($_POST['computer_id']) ? $_POST['computer_id'] : null;
+        $insert_stmt->bind_param("ssissii", $student_id, $student_name, $lab_id, $purpose, $check_in_time, $admin_id, $computer_id);
         
         if ($insert_stmt->execute()) {
             $new_sitin_id = $insert_stmt->insert_id;
             
-            // Deduct one session from student's remaining sessions if the table has this column
-            $update_query = "UPDATE users SET remaining_sessions = remaining_sessions - 1 WHERE idNo = ? AND remaining_sessions > 0";
-            $update_stmt = $conn->prepare($update_query);
-            
-            if ($update_stmt) {
-                $update_stmt->bind_param("s", $student_id);
-                $update_result = $update_stmt->execute();
-                
-                // Check if the update was successful
-                if ($update_result && $update_stmt->affected_rows > 0) {
-                    // Session successfully deducted
-                    $response['remaining_sessions_updated'] = true;
-                } else {
-                    // No rows affected could mean student has 0 sessions
-                    $response['remaining_sessions_updated'] = false;
-                    $response['message'] .= ' Note: Could not deduct remaining session - student may have 0 sessions left.';
+            // If a computer is assigned, update its status to 'used'
+            if ($computer_id) {
+                $update_computer = $conn->prepare("UPDATE computers SET status = 'used' WHERE computer_id = ?");
+                if ($update_computer) {
+                    $update_computer->bind_param("i", $computer_id);
+                    $update_computer->execute();
+                    $update_computer->close();
                 }
-                $update_stmt->close();
+                
+                // If this was from a reservation, mark the reservation as completed
+                if ($reservation_id) {
+                    $update_reservation = $conn->prepare("UPDATE reservations SET status = 'completed' WHERE reservation_id = ?");
+                    if ($update_reservation) {
+                        $update_reservation->bind_param("i", $reservation_id);
+                        $update_reservation->execute();
+                        $update_reservation->close();
+                        
+                        $response['message'] = 'Sit-in registered successfully based on approved reservation!';
+                    }
+                }
             }
+            
+            // We no longer deduct a session here when registering
+            // The deduction will happen only when the student logs out
             
             $response['success'] = true;
             $response['message'] = 'Sit-in registered successfully!';

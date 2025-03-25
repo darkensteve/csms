@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Check if sit_in_sessions table exists
     $table_check = $conn->query("SHOW TABLES LIKE 'sit_in_sessions'");
     if ($table_check->num_rows == 0) {
-        // Create the sit_in_sessions table if it doesn't exist
+        // Create the sit_in_sessions table if it doesn't exist - now including computer_id column
         $create_table_sql = "CREATE TABLE sit_in_sessions (
             session_id INT AUTO_INCREMENT PRIMARY KEY,
             student_id VARCHAR(50) NOT NULL,
@@ -50,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             check_out_time DATETIME NULL,
             status VARCHAR(50) NOT NULL,
             admin_id INT,
+            computer_id INT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )";
         
@@ -58,6 +59,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['sitin_status'] = "error";
             header('Location: ../students/search_student.php');
             exit();
+        }
+    } else {
+        // Check if computer_id column exists in the table
+        $column_check = $conn->query("SHOW COLUMNS FROM sit_in_sessions LIKE 'computer_id'");
+        if ($column_check->num_rows == 0) {
+            // Add computer_id column if it doesn't exist
+            $alter_table_sql = "ALTER TABLE sit_in_sessions ADD COLUMN computer_id INT NULL";
+            if (!$conn->query($alter_table_sql)) {
+                $_SESSION['sitin_message'] = "Failed to update database table: " . $conn->error;
+                $_SESSION['sitin_status'] = "error";
+                header('Location: ../students/search_student.php');
+                exit();
+            }
         }
     }
     
@@ -85,31 +99,108 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit();
             }
             
-            // Decrease remaining sessions
-            $remaining_sessions--;
-            $update_query = "UPDATE users SET remaining_sessions = ? WHERE user_id = ?";
-            $stmt_update = $conn->prepare($update_query);
-            if ($stmt_update) {
-                $stmt_update->bind_param("ii", $remaining_sessions, $user_id);
-                $stmt_update->execute();
-                $stmt_update->close();
-            }
+            // We no longer decrease remaining sessions here
+            // It will be decreased only when the student is timed out
         }
         $stmt_user->close();
     }
     
-    // Insert the sit-in session into the database
-    $stmt = $conn->prepare("INSERT INTO sit_in_sessions (student_id, student_name, lab_id, purpose, check_in_time, status, admin_id) 
-                           VALUES (?, ?, ?, ?, ?, ?, ?)");
+    // Check if student already has an active sit-in session
+    $check_active = $conn->prepare("SELECT COUNT(*) as count FROM sit_in_sessions WHERE student_id = ? AND status = 'active'");
+    $check_active->bind_param("s", $student_id);
+    $check_active->execute();
+    $result = $check_active->get_result();
+    $active_count = $result->fetch_assoc()['count'];
+    
+    if ($active_count > 0) {
+        $_SESSION['sitin_message'] = "This student already has an active sit-in session.";
+        $_SESSION['sitin_status'] = 'error';
+        
+        // Redirect back
+        if ($redirect_to_current) {
+            header('Location: current_sitin.php');
+        } else {
+            header('Location: ../students/search_student.php');
+        }
+        exit();
+    }
+    
+    // Check for approved reservations for this student
+    $computer_id = null;
+    $check_reservation = $conn->prepare("
+        SELECT r.reservation_id, r.computer_id, r.lab_id, r.purpose
+        FROM reservations r
+        JOIN users u ON r.user_id = u.user_id
+        WHERE u.idNo = ? AND r.status = 'approved' AND DATE(r.reservation_date) = CURDATE()
+        LIMIT 1
+    ");
+    
+    if ($check_reservation) {
+        $check_reservation->bind_param("s", $student_id);
+        $check_reservation->execute();
+        $res_result = $check_reservation->get_result();
+        
+        if ($res_result->num_rows > 0) {
+            $reservation_data = $res_result->fetch_assoc();
+            
+            // Use the reserved computer and lab
+            $computer_id = $reservation_data['computer_id'];
+            $lab_id = $reservation_data['lab_id'];
+            
+            // Optionally use the reservation purpose if none provided
+            if (empty($purpose) && !empty($reservation_data['purpose'])) {
+                $purpose = $reservation_data['purpose'];
+            }
+            
+            // Update computer status from 'reserved' to 'used'
+            if ($computer_id) {
+                $update_computer = $conn->prepare("UPDATE computers SET status = 'used' WHERE computer_id = ?");
+                $update_computer->bind_param("i", $computer_id);
+                $update_computer->execute();
+                
+                // Also update the reservation status to 'completed'
+                $update_reservation = $conn->prepare("UPDATE reservations SET status = 'completed' WHERE reservation_id = ?");
+                $update_reservation->bind_param("i", $reservation_data['reservation_id']);
+                $update_reservation->execute();
+                
+                $_SESSION['sitin_message'] = "Student has been checked in based on an approved reservation. Computer status updated to 'Used'.";
+                $_SESSION['sitin_status'] = "success";
+            }
+        }
+    }
+    
+    // Prepare the INSERT query with proper handling of computer_id
+    // Use a variable to store the query and parameters to handle NULL values correctly
+    if ($computer_id === null) {
+        $query = "INSERT INTO sit_in_sessions (student_id, student_name, lab_id, purpose, check_in_time, status, admin_id) 
+                  VALUES (?, ?, ?, ?, ?, ?, ?)";
+        $stmt = $conn->prepare($query);
+        $stmt->bind_param("ssisssi", $student_id, $student_name, $lab_id, $purpose, $check_in_time, $status, $_SESSION['admin_id']);
+    } else {
+        $query = "INSERT INTO sit_in_sessions (student_id, student_name, lab_id, purpose, check_in_time, status, admin_id, computer_id) 
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        $stmt = $conn->prepare($query);
+        $stmt->bind_param("ssisssii", $student_id, $student_name, $lab_id, $purpose, $check_in_time, $status, $_SESSION['admin_id'], $computer_id);
+    }
     
     if ($stmt) {
-        $stmt->bind_param("ssisssi", $student_id, $student_name, $lab_id, $purpose, $check_in_time, $status, $_SESSION['admin_id']);
-        
         if ($stmt->execute()) {
             $sitin_id = $conn->insert_id; // Get the newly created sit-in ID
             
+            // If a computer is assigned, update its status to 'used'
+            if ($computer_id) {
+                $update_computer = $conn->prepare("UPDATE computers SET status = 'used' WHERE computer_id = ?");
+                if ($update_computer) {
+                    $update_computer->bind_param("i", $computer_id);
+                    $update_computer->execute();
+                    $update_computer->close();
+                }
+            }
+            
             // Success message
-            $_SESSION['sitin_message'] = "Student successfully registered for sit-in session.";
+            $_SESSION['sitin_message'] = $computer_id 
+                ? "Student has been checked in based on an approved reservation. Computer status updated to 'Used'." 
+                : "Student has been checked in successfully.";
             $_SESSION['sitin_status'] = "success";
             
             // Redirect based on the redirect parameter

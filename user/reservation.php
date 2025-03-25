@@ -120,10 +120,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         // Always use today's date
         $date = date('Y-m-d');
         
-        // Get custom time
+        // Get custom time - only start time now
         $startTime = $_POST['start_time'];
-        $endTime = $_POST['end_time'];
-        $timeSlot = $startTime . ' - ' . $endTime;
+        
+        // Format the time slot to show only the start time
+        $timeSlot = $startTime;
         
         $purpose = $_POST['purpose'];
         
@@ -137,23 +138,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
         $isTimeValid = true;
         $timeErrorMessage = "";
         
-        // Convert times to 24-hour format for comparison
+        // Convert time to 24-hour format for comparison
         $startTime24 = date('H:i', strtotime($startTime));
-        $endTime24 = date('H:i', strtotime($endTime));
-        
-        // Check if end time is after start time
-        if ($startTime24 >= $endTime24) {
-            $isTimeValid = false;
-            $timeErrorMessage = "End time must be after start time.";
-        }
         
         // Check if the time slot is within lab operation hours (8 AM - 6 PM)
         $openTime = '08:00';
         $closeTime = '18:00';
         
-        if ($startTime24 < $openTime || $endTime24 > $closeTime) {
+        if ($startTime24 < $openTime || $startTime24 >= $closeTime) {
             $isTimeValid = false;
-            $timeErrorMessage = "Time must be between 8 AM and 6 PM.";
+            $timeErrorMessage = "Start time must be between 8 AM and 6 PM.";
         }
         
         // Validate computer selection
@@ -200,8 +194,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             $stmt->bind_param("iiisssss", $loggedInUserId, $labId, $computerId, $date, $timeSlot, $purpose, $status, $createdAt);
             
             if ($stmt->execute()) {
-                // If successful, mark the computer as reserved
-                $updateComputer = $conn->prepare("UPDATE computers SET status = 'reserved' WHERE computer_id = ?");
+                // If successful, mark the computer as pending (not reserved yet)
+                $updateComputer = $conn->prepare("UPDATE computers SET status = 'pending' WHERE computer_id = ?");
                 $updateComputer->bind_param("i", $computerId);
                 $updateComputer->execute();
                 
@@ -274,13 +268,6 @@ $programmingPurposes = [
     'C# Programming',
     'PHP Programming',
     'ASP.net Programming',
-    'Python Programming',
-    'Web Development',
-    'Database Design',
-    'Mobile App Development',
-    'Research',
-    'Assignment Completion',
-    'Project Work'
 ];
 
 // Check for available slots - add error handling
@@ -453,6 +440,116 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
     </style>
+    <script>
+        // Toggle mobile menu
+        document.getElementById('mobile-menu-button').addEventListener('click', function() {
+            document.getElementById('mobile-menu').classList.toggle('hidden');
+        });
+        
+        // Toggle mobile dropdown menus
+        document.querySelectorAll('.mobile-dropdown-button').forEach(button => {
+            button.addEventListener('click', function() {
+                this.nextElementSibling.classList.toggle('hidden');
+            });
+        });
+        
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.add('show');
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                    setTimeout(() => {
+                        notification.remove();
+                    }, 300);
+                }, 3000);
+            }, 100);
+        }
+        
+        // Form validation before submission - removed incorrect IIFE
+        document.getElementById('reservationForm').addEventListener('submit', function(e) {
+            const startTime = document.getElementById('start_time').value;
+            
+            if (startTime) {
+                // Check if times are within lab hours (8 AM - 6 PM)
+                const startHour = parseInt(startTime.split(':')[0]);
+                const startMinute = parseInt(startTime.split(':')[1]);
+                
+                if (startHour < 8 || startHour >= 18) {
+                    e.preventDefault();
+                    showNotification("Lab hours are from 8:00 AM to 6:00 PM.", "error");
+                }
+            }
+        });
+        
+        // Check if notification should be shown (from PHP)
+        <?php if (!empty($message)): ?>
+        showNotification("<?php echo $message; ?>", "<?php echo $messageType; ?>");
+        <?php endif; ?>
+        
+        // Load available computers when lab is selected
+        document.getElementById('lab_id').addEventListener('change', function() {
+            const labId = this.value;
+            const computerSelect = document.getElementById('computer_id');
+            const loadingMessage = document.getElementById('computer-loading');
+            const noComputersMessage = document.getElementById('no-computers-message');
+            
+            // Reset computer dropdown
+            computerSelect.innerHTML = '<option value="">Loading computers...</option>';
+            computerSelect.disabled = true;
+            
+            // Show loading indicator
+            loadingMessage.classList.remove('hidden');
+            noComputersMessage.classList.add('hidden');
+            
+            if (labId) {
+                // Fetch available computers for selected lab
+                fetch(`reservation.php?get_computers=1&lab_id=${labId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        loadingMessage.classList.add('hidden');
+                        computerSelect.disabled = false;
+                        computerSelect.innerHTML = '';
+                        
+                        // Add default option
+                        const defaultOption = document.createElement('option');
+                        defaultOption.value = '';
+                        defaultOption.textContent = 'Select a computer';
+                        computerSelect.appendChild(defaultOption);
+                        
+                        if (data.length > 0) {
+                            // Add options for each available computer
+                            data.forEach(computer => {
+                                const option = document.createElement('option');
+                                option.value = computer.computer_id;
+                                option.textContent = `Computer #${computer.computer_number}`;
+                                computerSelect.appendChild(option);
+                            });
+                        } else {
+                            // Show message if no computers available
+                            noComputersMessage.classList.remove('hidden');
+                            defaultOption.textContent = 'No computers available';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching computers:', error);
+                        loadingMessage.classList.add('hidden');
+                        computerSelect.disabled = false;
+                        computerSelect.innerHTML = '<option value="">Error loading computers</option>';
+                        noComputersMessage.classList.remove('hidden');
+                    });
+            } else {
+                // Reset if no lab selected
+                loadingMessage.classList.add('hidden');
+                computerSelect.disabled = false;
+                computerSelect.innerHTML = '<option value="">Please select a lab first</option>';
+            }
+        });
+    </script>
 </head>
 <body class="font-sans bg-gray-50 min-h-screen flex flex-col">
     <!-- Navigation Bar -->
@@ -568,6 +665,7 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                         </div>
                     <?php endif; ?>
                     
+                    <!-- Form layout modification to make fields more compact -->
                     <form action="reservation.php" method="POST" id="reservationForm">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <!-- Student Information (Read-only) -->
@@ -589,58 +687,64 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                             </div>
                         </div>
                         
-                        <div class="mb-4">
-                            <label for="lab_id" class="block text-sm font-medium text-gray-700 mb-1">Select Laboratory</label>
-                            <select id="lab_id" name="lab_id" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500" <?php echo !$canReserve ? 'disabled' : ''; ?> required>
-                                <option value="">Select a laboratory</option>
-                                <?php foreach ($labs as $lab): ?>
-                                <option value="<?php echo $lab['lab_id']; ?>"><?php echo $lab['lab_name'] . (isset($lab['location']) ? ' (' . $lab['location'] . ')' : ''); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                            <p class="text-xs text-gray-500 mt-1">Select a lab to see available computers</p>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <label for="computer_id" class="block text-sm font-medium text-gray-700 mb-1">Select Available Computer</label>
-                            <select id="computer_id" name="computer_id" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500" <?php echo !$canReserve ? 'disabled' : ''; ?> required>
-                                <option value="">Please select a lab first</option>
-                            </select>
-                            <div id="computer-loading" class="text-sm text-gray-500 mt-1 hidden">
-                                <i class="fas fa-spinner fa-spin mr-1"></i> Loading available computers...
+                        <!-- Reorganized form fields in a more compact layout -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <!-- Select Laboratory -->
+                            <div>
+                                <label for="lab_id" class="block text-sm font-medium text-gray-700 mb-1">Select Laboratory</label>
+                                <select id="lab_id" name="lab_id" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500" <?php echo !$canReserve ? 'disabled' : ''; ?> required>
+                                    <option value="">Select a laboratory</option>
+                                    <?php foreach ($labs as $lab): ?>
+                                    <option value="<?php echo $lab['lab_id']; ?>"><?php echo $lab['lab_name'] . (isset($lab['location']) ? ' (' . $lab['location'] . ')' : ''); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1">Select a lab to see available computers</p>
                             </div>
-                            <p id="no-computers-message" class="text-xs text-red-500 mt-1 hidden">
-                                No available computers in this lab. Please select another lab.
-                            </p>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <label for="reservation_date_display" class="block text-sm font-medium text-gray-700 mb-1">Date (Today Only)</label>
-                            <input type="text" id="reservation_date_display" value="<?php echo date('Y-m-d'); ?>" class="bg-gray-50 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 text-gray-500" readonly>
-                            <p class="text-xs text-gray-500 mt-1">Reservations are only available for today's date.</p>
+                            
+                            <!-- Select Available Computer -->
+                            <div>
+                                <label for="computer_id" class="block text-sm font-medium text-gray-700 mb-1">Select Available Computer</label>
+                                <select id="computer_id" name="computer_id" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500" <?php echo !$canReserve ? 'disabled' : ''; ?> required>
+                                    <option value="">Please select a lab first</option>
+                                </select>
+                                <div id="computer-loading" class="text-sm text-gray-500 mt-1 hidden">
+                                    <i class="fas fa-spinner fa-spin mr-1"></i> Loading available computers...
+                                </div>
+                                <p id="no-computers-message" class="text-xs text-red-500 mt-1 hidden">
+                                    No available computers in this lab. Please select another lab.
+                                </p>
+                            </div>
                         </div>
                         
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <!-- Date (Today Only) -->
+                            <div>
+                                <label for="reservation_date_display" class="block text-sm font-medium text-gray-700 mb-1">Date (Today Only)</label>
+                                <input type="text" id="reservation_date_display" value="<?php echo date('Y-m-d'); ?>" class="bg-gray-50 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 text-gray-500" readonly>
+                                <p class="text-xs text-gray-500 mt-1">Reservations are only for today's date.</p>
+                            </div>
+                            
+                            <!-- Start Time -->
                             <div>
                                 <label for="start_time" class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-                                <input type="time" id="start_time" name="start_time" min="08:00" max="17:00" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500" <?php echo !$canReserve ? 'disabled' : ''; ?> required>
+                                <input type="time" id="start_time" name="start_time" min="08:00" max="17:59" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500" <?php echo !$canReserve ? 'disabled' : ''; ?> required>
+                                <p class="text-xs text-gray-500 mt-1">Admin will record when your session ends.</p>
                             </div>
+                        </div>
+
+                        <!-- Purpose of SitIn as part of the grid layout -->
+                        <div class="grid grid-cols-1 mb-6">
                             <div>
-                                <label for="end_time" class="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-                                <input type="time" id="end_time" name="end_time" min="09:00" max="18:00" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500" <?php echo !$canReserve ? 'disabled' : ''; ?> required>
+                                <label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">Purpose of SitIn</label>
+                                <select id="purpose" name="purpose" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500" <?php echo !$canReserve ? 'disabled' : ''; ?> required>
+                                    <option value="" selected disabled>Select purpose</option>
+                                    <?php foreach ($programmingPurposes as $purpose): ?>
+                                    <option value="<?php echo $purpose; ?>"><?php echo $purpose; ?></option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
                         </div>
-                        <p class="text-xs text-gray-500 mt-1 mb-4">Lab hours are from 8:00 AM to 6:00 PM.</p>
-                        
-                        <div class="mb-6">
-                            <label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">Purpose of SitIn</label>
-                            <select id="purpose" name="purpose" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500" <?php echo !$canReserve ? 'disabled' : ''; ?> required>
-                                <option value="" selected disabled>Select purpose</option>
-                                <?php foreach ($programmingPurposes as $purpose): ?>
-                                <option value="<?php echo $purpose; ?>"><?php echo $purpose; ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        
+
                         <div class="flex justify-end">
                             <button type="submit" name="submit_reservation" class="px-6 py-2.5 bg-primary-600 text-white font-medium rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-colors" <?php echo !$canReserve ? 'disabled' : ''; ?>>
                                 <i class="fas fa-calendar-plus mr-2"></i> Submit Reservation
@@ -649,7 +753,7 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                     </form>
                 </div>
             </div>
-            
+
             <!-- Active Reservations -->
             <div>
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -672,7 +776,6 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                                             <?php echo ucfirst($reservation['status']); ?>
                                         </span>
                                     </div>
-                                    
                                     <div class="text-sm text-gray-600 space-y-1">
                                         <div class="flex">
                                             <i class="fas fa-calendar-day w-5 text-gray-500"></i>
@@ -713,7 +816,6 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                 </div>
             </div>
         </div>
-        
         <?php else: ?>
         <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
             <div class="text-center py-8">
@@ -729,7 +831,7 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
         </div>
         <?php endif; ?>
     </div>
-    
+
     <footer class="bg-white border-t border-gray-200 py-4 mt-auto">
         <div class="container mx-auto px-4 text-center text-gray-500 text-sm">
             &copy; 2024 SitIn System. All rights reserved.
@@ -766,24 +868,16 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
             }, 100);
         }
         
-        // Form validation before submission
+        // Form validation before submission - removed incorrect IIFE
         document.getElementById('reservationForm').addEventListener('submit', function(e) {
             const startTime = document.getElementById('start_time').value;
-            const endTime = document.getElementById('end_time').value;
             
-            if (startTime && endTime) {
-                // Check if end time is after start time
-                if (startTime >= endTime) {
-                    e.preventDefault();
-                    showNotification("End time must be after start time.", "error");
-                }
-                
+            if (startTime) {
                 // Check if times are within lab hours (8 AM - 6 PM)
                 const startHour = parseInt(startTime.split(':')[0]);
-                const endHour = parseInt(endTime.split(':')[0]);
-                const endMinute = parseInt(endTime.split(':')[1]);
+                const startMinute = parseInt(startTime.split(':')[1]);
                 
-                if (startHour < 8 || (endHour > 18 || (endHour === 18 && endMinute > 0))) {
+                if (startHour < 8 || startHour >= 18) {
                     e.preventDefault();
                     showNotification("Lab hours are from 8:00 AM to 6:00 PM.", "error");
                 }

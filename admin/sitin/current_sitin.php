@@ -204,6 +204,46 @@ if (isset($_SESSION['sitin_message']) && isset($_SESSION['sitin_status'])) {
     unset($_SESSION['sitin_message']);
     unset($_SESSION['sitin_status']);
 }
+
+// Check for and process approved reservations when student sits in
+if (isset($_POST['process_sitin']) && isset($_POST['student_id'])) {
+    $student_id = $_POST['student_id'];
+    
+    // Check if student has an approved reservation
+    $check_reservation = $conn->prepare("
+        SELECT r.reservation_id, r.computer_id, r.lab_id 
+        FROM reservations r
+        JOIN users u ON r.user_id = u.user_id
+        WHERE u.idNo = ? AND r.status = 'approved' AND DATE(r.reservation_date) = CURDATE()
+        LIMIT 1
+    ");
+    
+    if ($check_reservation) {
+        $check_reservation->bind_param("s", $student_id);
+        $check_reservation->execute();
+        $res_result = $check_reservation->get_result();
+        
+        if ($res_result->num_rows > 0) {
+            $reservation_data = $res_result->fetch_assoc();
+            
+            // Update the computer status from 'reserved' to 'used'
+            if ($reservation_data['computer_id']) {
+                $update_computer = $conn->prepare("UPDATE computers SET status = 'used' WHERE computer_id = ?");
+                $update_computer->bind_param("i", $reservation_data['computer_id']);
+                $update_computer->execute();
+                
+                // Also update the reservation status to 'completed'
+                $update_reservation = $conn->prepare("UPDATE reservations SET status = 'completed' WHERE reservation_id = ?");
+                $update_reservation->bind_param("i", $reservation_data['reservation_id']);
+                $update_reservation->execute();
+                
+                // Set success message
+                $_SESSION['sitin_message'] = "Student has been checked in based on an approved reservation. Computer status updated to 'Used'.";
+                $_SESSION['sitin_status'] = 'success';
+            }
+        }
+    }
+}
 ?>
 
 <!DOCTYPE html>
