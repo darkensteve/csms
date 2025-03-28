@@ -124,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             // We no longer deduct a session here when registering
-            // The deduction will happen only when the student logs out
+            // The deduction will happen only when the student logs out/is timed out
             
             $response['success'] = true;
             $response['message'] = 'Sit-in registered successfully!';

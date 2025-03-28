@@ -32,6 +32,7 @@ CREATE TABLE `admin` (
   `username` varchar(50) NOT NULL,
   `password` varchar(255) NOT NULL,
   `email` varchar(100) NOT NULL,
+  `profile_pic` varchar(255) NOT NULL DEFAULT 'newp.jpg',
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 

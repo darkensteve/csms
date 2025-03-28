@@ -143,14 +143,65 @@ else if (isset($_GET['id'])) {
                         </a>
                     </div>
                     
-                    <a href="../admin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">
-                        <i class="fas fa-arrow-left mr-1"></i> Back to Dashboard
-                    </a>
+                    <button id="mobile-menu-button" class="md:hidden text-white focus:outline-none">
+                        <i class="fas fa-bars text-xl"></i>
+                    </button>
+                    <div class="relative">
+                        <button class="flex items-center space-x-2 focus:outline-none" id="userDropdown" onclick="toggleUserDropdown()">
+                            <div class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
+                                <img src="../newp.jpg" alt="Admin" class="w-full h-full object-cover">
+                            </div>
+                            <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username ?? 'Admin'); ?></span>
+                            <i class="fas fa-chevron-down text-xs"></i>
+                        </button>
+                        <div id="userMenu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg overflow-hidden z-20">
+                            <div class="py-2">
+                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
+                                    <i class="fas fa-user-circle mr-2"></i> Profile
+                                </a>
+                                <a href="../edit_admin_profile.php" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
+                                    <i class="fas fa-user-edit mr-2"></i> Edit Profile
+                                </a>
+                                <div class="border-t border-gray-100"></div>
+                                <a href="../auth/logout_admin.php" class="block px-4 py-2 text-red-600 hover:bg-gray-100">
+                                    <i class="fas fa-sign-out-alt mr-2"></i> Logout
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </nav>
         </div>
     </header>
     
+    <!-- Mobile Navigation Menu (hidden by default) -->
+    <div id="mobile-menu" class="md:hidden bg-primary-800 hidden">
+        <a href="../admin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-home mr-2"></i> Home
+        </a>
+        <a href="../students/search_student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-search mr-2"></i> Search
+        </a>
+        <a href="../students/student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-users mr-2"></i> Students
+        </a>
+        <a href="../sitin/current_sitin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-user-check mr-2"></i> Sit-In
+        </a>
+        <a href="../sitin/sitin_records.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-list mr-2"></i> Records
+        </a>
+        <a href="../sitin/sitin_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-chart-bar mr-2"></i> Reports
+        </a>
+        <a href="../sitin/feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-comment mr-2"></i> Feedback
+        </a>
+        <a href="../reservation/reservation.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-calendar-check mr-2"></i> Reservation
+        </a>
+    </div>
+
     <!-- Main Content -->
     <div class="flex-1 container mx-auto px-4 py-6">
         <div class="bg-white rounded-xl shadow-md">

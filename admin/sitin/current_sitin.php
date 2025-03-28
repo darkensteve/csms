@@ -123,6 +123,24 @@ if ($table_check->num_rows == 0) {
         ('Mac Laboratory', 25)");
 }
 
+// Check if system_logs table exists, if not create it
+$table_check = $conn->query("SHOW TABLES LIKE 'system_logs'");
+if ($table_check->num_rows == 0) {
+    // Table doesn't exist, create it
+    $create_table_sql = "CREATE TABLE `system_logs` (
+        `log_id` INT AUTO_INCREMENT PRIMARY KEY,
+        `user_id` VARCHAR(50),
+        `action` VARCHAR(255) NOT NULL,
+        `action_type` VARCHAR(50) NOT NULL,
+        `details` TEXT,
+        `ip_address` VARCHAR(45),
+        `user_agent` VARCHAR(255),
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+    
+    $conn->query($create_table_sql);
+}
+
 // Pagination settings for current sit-ins
 $records_per_page = 10;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;

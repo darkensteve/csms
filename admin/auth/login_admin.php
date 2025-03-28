@@ -85,8 +85,8 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Login | Sit-In Management System</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Admin Login - CCS SITIN Monitoring System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -118,19 +118,100 @@ $conn->close();
         .card-shadow {
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .notification.success {
+            background-color: #10b981;
+        }
+        
+        .notification.error {
+            background-color: #ef4444;
+        }
+        
+        .notification.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        
+        .notification i {
+            margin-right: 10px;
+            font-size: 18px;
+        }
+        .logo {
+            height: 55px;
+            width: auto;
+        }
     </style>
+    <script>
+        window.onload = function() {
+            // Check for logout or login message
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('message')) {
+                const message = urlParams.get('message');
+                if (message === 'logout') {
+                    showNotification('Successfully Logged Out!', 'success');
+                } else if (message === 'login') {
+                    showNotification('Successfully Logged In!', 'success');
+                }
+            }
+            
+            // Add toggle password visibility functionality
+            const togglePassword = document.querySelector('.password-toggle');
+            const password = document.querySelector('#password');
+            
+            if (togglePassword && password) {
+                togglePassword.addEventListener('click', function() {
+                    const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
+                    password.setAttribute('type', type);
+                    this.innerHTML = type === 'password' ? '<i class="far fa-eye"></i>' : '<i class="far fa-eye-slash"></i>';
+                });
+            }
+        };
+        
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.add('show');
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                    setTimeout(() => {
+                        notification.remove();
+                    }, 300);
+                }, 3000);
+            }, 100);
+        }
+    </script>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <div class="min-h-screen flex items-center justify-center p-4 gradient-background">
         <div class="bg-white p-8 rounded-xl card-shadow w-full max-w-md border-t-4 border-primary-500">
             <div class="text-center mb-8">
-                <div class="flex justify-center mb-4">
-                    <div class="bg-primary-500 text-white p-4 rounded-full">
-                        <i class="fas fa-user-shield text-2xl"></i>
-                    </div>
+                <!-- Keep the logo section from original design -->
+                <div class="flex justify-center gap-8 mb-4">
+                    <img src="../../uclogo.jpg" alt="UC Logo" class="logo">
+                    <img src="../../ccs.png" alt="CCS Logo" class="logo">
                 </div>
-                <h1 class="text-3xl font-bold text-gray-800">Admin Login</h1>
-                <p class="text-gray-600 mt-2">Sit-In Management System</p>
+                <h1 class="text-3xl font-bold text-gray-800">ADMINISTRATOR LOGIN</h1>
+                <p class="text-gray-600 mt-2">CCS SITIN MONITORING SYSTEM</p>
             </div>
             
             <?php if($admin_setup_needed): ?>
@@ -176,16 +257,17 @@ $conn->close();
                 </div>
             <?php endif; ?>
             
-            <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" class="space-y-6">
+            <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" class="space-y-6" autocomplete="off">
                 <div>
                     <label for="username" class="block text-gray-700 text-sm font-semibold mb-2">Username</label>
                     <div class="relative">
                         <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                             <i class="fas fa-user text-primary-500"></i>
                         </div>
-                        <input type="text" id="username" name="username" class="pl-10 w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 transition duration-200" required placeholder="Enter your username">
+                        <input type="text" id="username" name="username" class="pl-10 w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 transition duration-200" required placeholder="Enter your username" autofocus>
                     </div>
                 </div>
+                
                 <div>
                     <label for="password" class="block text-gray-700 text-sm font-semibold mb-2">Password</label>
                     <div class="relative">
@@ -193,23 +275,28 @@ $conn->close();
                             <i class="fas fa-lock text-primary-500"></i>
                         </div>
                         <input type="password" id="password" name="password" class="pl-10 w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 transition duration-200" required placeholder="Enter your password">
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-3 password-toggle cursor-pointer">
+                            <i class="far fa-eye text-gray-500"></i>
+                        </div>
                     </div>
                 </div>
+                
                 <div class="flex items-center justify-between">
                     <div class="flex items-center">
-                        <input id="remember" type="checkbox" class="h-4 w-4 text-primary-500 focus:ring-primary-500 border-gray-300 rounded">
+                        <input id="remember" name="remember" type="checkbox" class="h-4 w-4 text-primary-500 focus:ring-primary-500 border-gray-300 rounded">
                         <label for="remember" class="ml-2 block text-sm text-gray-700">Remember me</label>
                     </div>
                     <a href="#" class="text-sm text-primary-500 hover:text-accent hover:underline transition duration-200">Forgot password?</a>
                 </div>
-                <button type="submit" class="w-full bg-primary-500 hover:bg-accent text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition duration-200 transform hover:-translate-y-0.5">
-                    Login
+                
+                <button type="submit" class="w-full bg-primary-500 hover:bg-accent text-white font-bold py-3 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition duration-200 transform hover:-translate-y-0.5 flex items-center justify-center">
+                    <i class="fas fa-sign-in-alt mr-2"></i> Login
                 </button>
             </form>
             
             <div class="mt-8 text-center border-t border-gray-200 pt-6">
-                <a href="../../user/index.php" class="text-sm text-primary-500 hover:text-accent flex items-center justify-center gap-2 hover:underline transition duration-200">
-                    <i class="fas fa-arrow-left"></i> Back to Main Site
+                <a href="../../user/index.php" class="inline-flex items-center justify-center px-4 py-2 border border-primary-500 text-primary-500 hover:bg-primary-50 rounded-lg transition duration-200">
+                    <i class="fas fa-arrow-left mr-2"></i> Back to Main Site
                 </a>
             </div>
         </div>

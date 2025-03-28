@@ -337,8 +337,9 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
         <div class="container mx-auto">
             <nav class="flex items-center justify-between px-4 py-3">
                 <div class="flex items-center space-x-4">
-                    <a href="admin.php" class="text-xl font-bold">Dashboard</a>
+                    <a href="../admin.php" class="text-xl font-bold">Dashboard</a>
                 </div>
+                
                 <div class="flex items-center space-x-3">
                     <div class="hidden md:flex items-center space-x-2 mr-4">
                         <a href="../admin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
@@ -347,7 +348,7 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
                         <a href="search_student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-search mr-1"></i> Search
                         </a>
-                        <a href="student.php" class="px-3 py-2 rounded bg-primary-800 transition flex items-center">
+                        <a href="student.php" class="px-3 py-2 bg-primary-800 rounded transition flex items-center">
                             <i class="fas fa-users mr-1"></i> Students
                         </a>
                         <a href="../sitin/current_sitin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
@@ -383,8 +384,8 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
                                 <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
                                     <i class="fas fa-user-circle mr-2"></i> Profile
                                 </a>
-                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
-                                    <i class="fas fa-cog mr-2"></i> Settings
+                                <a href="../edit_admin_profile.php" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
+                                    <i class="fas fa-user-edit mr-2"></i> Edit Profile
                                 </a>
                                 <div class="border-t border-gray-100"></div>
                                 <a href="../auth/logout_admin.php" class="block px-4 py-2 text-red-600 hover:bg-gray-100">

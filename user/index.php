@@ -194,7 +194,8 @@ if (isset($_SESSION['id']) && isset($_SESSION['username'])) {
                     <img src="../uclogo.jpg" alt="UC Logo" class="logo">
                     <img src="../ccs.png" alt="CCS Logo" class="logo">
                 </div>
-                <h1 class="text-3xl font-bold text-gray-800">CCS SITIN MONITORING SYSTEM</h1>
+                <h1 class="text-3xl font-bold text-gray-800">STUDENT LOGIN</h1>
+                <p class="text-gray-600 mt-2">CCS SITIN MONITORING SYSTEM</p>
             </div>
             
             <?php if(!empty($error)): ?>

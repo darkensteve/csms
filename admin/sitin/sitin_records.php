@@ -139,10 +139,24 @@ if ($date_filter === 'today') {
 
 // Get data for purpose distribution chart
 $purpose_query = "SELECT purpose, COUNT(*) as count FROM sit_in_sessions";
-// Apply the same filters as the main query for consistency
+
+// Build WHERE clause for purpose query
+$purpose_where_clauses = array();
+
 if ($date_filter === 'today') {
-    $purpose_query .= " WHERE DATE(check_in_time) = '$today'";
+    $purpose_where_clauses[] = "DATE(check_in_time) = '$today'";
 }
+
+// Apply status filter to purpose chart data
+if ($status !== 'all') {
+    $purpose_where_clauses[] = "(status = '$status' OR LOWER(status) = LOWER('$status'))";
+}
+
+// Add WHERE clause if we have conditions
+if (!empty($purpose_where_clauses)) {
+    $purpose_query .= " WHERE " . implode(" AND ", $purpose_where_clauses);
+}
+
 $purpose_query .= " GROUP BY purpose ORDER BY count DESC";
 $purpose_result = mysqli_query($conn, $purpose_query);
 $purpose_data = array();
@@ -161,10 +175,24 @@ if ($purpose_result) {
 $lab_query = "SELECT l.lab_name, COUNT(*) as count 
               FROM sit_in_sessions s
               LEFT JOIN labs l ON s.lab_id = l.lab_id";
-// Apply the same filters as the main query for consistency
+
+// Build WHERE clause for lab query
+$lab_where_clauses = array();
+
 if ($date_filter === 'today') {
-    $lab_query .= " WHERE DATE(s.check_in_time) = '$today'";
+    $lab_where_clauses[] = "DATE(s.check_in_time) = '$today'";
 }
+
+// Apply status filter to lab chart data
+if ($status !== 'all') {
+    $lab_where_clauses[] = "(s.status = '$status' OR LOWER(s.status) = LOWER('$status'))";
+}
+
+// Add WHERE clause if we have conditions
+if (!empty($lab_where_clauses)) {
+    $lab_query .= " WHERE " . implode(" AND ", $lab_where_clauses);
+}
+
 $lab_query .= " GROUP BY l.lab_name ORDER BY count DESC";
 $lab_result = mysqli_query($conn, $lab_query);
 $lab_data = array();
@@ -241,7 +269,7 @@ if ($lab_result) {
         <div class="container mx-auto">
             <nav class="flex items-center justify-between px-4 py-3">
                 <div class="flex items-center space-x-4">
-                    <a href="admin.php" class="text-xl font-bold">Dashboard</a>
+                    <a href="../admin.php" class="text-xl font-bold">Dashboard</a>
                 </div>
                 
                 <div class="flex items-center space-x-3">
@@ -258,7 +286,7 @@ if ($lab_result) {
                         <a href="current_sitin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-user-check mr-1"></i> Sit-In
                         </a>
-                        <a href="sitin_records.php" class="bg-primary-800 px-3 py-2 rounded transition flex items-center">
+                        <a href="sitin_records.php" class="px-3 py-2 bg-primary-800 rounded transition flex items-center">
                             <i class="fas fa-list mr-1"></i> Records
                         </a>
                         <a href="sitin_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
@@ -305,29 +333,29 @@ if ($lab_result) {
     
     <!-- Mobile Navigation Menu (hidden by default) -->
     <div id="mobile-menu" class="md:hidden bg-primary-800 hidden">
-        <a href="admin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="../admin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-home mr-2"></i> Home
         </a>
-        <a href="search_student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="../students/search_student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-search mr-2"></i> Search
         </a>
-        <a href="student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="../students/student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-users mr-2"></i> Students
         </a>
-        <a href="sitin_register.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+        <a href="current_sitin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-user-check mr-2"></i> Sit-In
+        </a>
+        <a href="sitin_records.php" class="block px-4 py-2 text-white bg-primary-900">
+            <i class="fas fa-list mr-2"></i> Records
+        </a>
+        <a href="sitin_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-chart-bar mr-2"></i> Reports
+        </a>
+        <a href="feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-comment mr-2"></i> Feedback
         </a>
         <a href="../reservation/reservation.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-calendar-check mr-2"></i> Reservation
-        </a>
-        <a href="sitin_records.php" class="block px-4 py-2 text-white bg-primary-900">
-            <i class="fas fa-list mr-2"></i> View Sit-In Records
-        </a>
-        <a href="sitin_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
-            <i class="fas fa-chart-bar mr-2"></i> Sit-In Reports
-        </a>
-        <a href="feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
-            <i class="fas fa-comment mr-2"></i> Feedback Reports
         </a>
     </div>
 
@@ -409,7 +437,8 @@ if ($lab_result) {
                         </div>
                     </div>
                     
-                    <!-- Pie Chart Section -->
+                    <!-- Pie Chart Section - Only show when there are records -->
+                    <?php if ($result && mysqli_num_rows($result) > 0): ?>
                     <div class="no-print p-4 bg-white border-b border-gray-200">
                         <h3 class="text-lg font-medium text-gray-700 mb-4">Visual Distribution</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -430,6 +459,7 @@ if ($lab_result) {
                             </div>
                         </div>
                     </div>
+                    <?php endif; ?>
                     
                     <div class="table-container">
                         <table class="min-w-full">

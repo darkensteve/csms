@@ -85,14 +85,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['cancel_reservation']))
                 $updateComputer->execute();
             }
             
-            // Restore the session that was used for this reservation
-            $updateSessions = $conn->prepare("UPDATE users SET remaining_sessions = remaining_sessions + 1 WHERE user_id = ?");
-            $updateSessions->bind_param("i", $loggedInUserId);
-            $updateSessions->execute();
+            // Check if the reservation_logs table exists
+            $reservationLogsExists = $conn->query("SHOW TABLES LIKE 'reservation_logs'")->num_rows > 0;
             
-            // Update the session variable for real-time display
-            $remainingSessions += 1;
-            $canReserve = true;
+            if (!$reservationLogsExists) {
+                // Create the reservation_logs table if it doesn't exist
+                $createLogsTable = "CREATE TABLE `reservation_logs` (
+                    `log_id` INT AUTO_INCREMENT PRIMARY KEY,
+                    `reservation_id` INT NOT NULL,
+                    `user_id` INT NOT NULL,
+                    `action` VARCHAR(50) NOT NULL,
+                    `action_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    `details` TEXT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+                
+                $conn->query($createLogsTable);
+            }
+            
+            // Log the cancellation for history tracking
+            $logCancellation = $conn->prepare("INSERT INTO reservation_logs (reservation_id, user_id, action, action_time) VALUES (?, ?, 'cancelled', NOW())");
+            if ($logCancellation) {
+                $logCancellation->bind_param("ii", $reservation_id, $loggedInUserId);
+                $logCancellation->execute();
+                $logCancellation->close();
+            }
             
             $message = "Your reservation has been cancelled successfully.";
             $messageType = "success";
@@ -199,16 +215,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 $updateComputer->bind_param("i", $computerId);
                 $updateComputer->execute();
                 
-                // Decrease remaining sessions
-                $newRemainingCount = $remainingSessions - 1;
-                $updateStmt = $conn->prepare("UPDATE users SET remaining_sessions = ? WHERE user_id = ?");
-                $updateStmt->bind_param("ii", $newRemainingCount, $loggedInUserId);
-                $updateStmt->execute();
-                
                 $message = "Your reservation request has been submitted successfully. Please wait for approval.";
                 $messageType = "success";
-                $remainingSessions = $newRemainingCount;
-                $canReserve = $remainingSessions > 0;
             } else {
                 $message = "Error: " . $stmt->error;
                 $messageType = "error";

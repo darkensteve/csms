@@ -239,7 +239,7 @@ if (!empty($table_name) && !empty($id_value)) {
         <div class="container mx-auto">
             <nav class="flex items-center justify-between px-4 py-3">
                 <div class="flex items-center space-x-4">
-                    <a href="admin.php" class="text-xl font-bold">Dashboard</a>
+                    <a href="../admin.php" class="text-xl font-bold">Dashboard</a>
                 </div>
                 
                 <div class="flex items-center space-x-3">
@@ -250,7 +250,7 @@ if (!empty($table_name) && !empty($id_value)) {
                         <a href="search_student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-search mr-1"></i> Search
                         </a>
-                        <a href="student.php" class="px-3 py-2 bg-primary-800 rounded transition flex items-center">
+                        <a href="student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-users mr-1"></i> Students
                         </a>
                         <a href="../sitin/current_sitin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
@@ -276,9 +276,9 @@ if (!empty($table_name) && !empty($id_value)) {
                     <div class="relative">
                         <button class="flex items-center space-x-2 focus:outline-none" id="userDropdown" onclick="toggleUserDropdown()">
                             <div class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
-                                <img src="newp.jpg" alt="Admin" class="w-full h-full object-cover">
+                                <img src="../newp.jpg" alt="Admin" class="w-full h-full object-cover">
                             </div>
-                            <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username); ?></span>
+                            <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username ?? 'Admin'); ?></span>
                             <i class="fas fa-chevron-down text-xs"></i>
                         </button>
                         <div id="userMenu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg overflow-hidden z-20">
@@ -286,11 +286,11 @@ if (!empty($table_name) && !empty($id_value)) {
                                 <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
                                     <i class="fas fa-user-circle mr-2"></i> Profile
                                 </a>
-                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
-                                    <i class="fas fa-cog mr-2"></i> Settings
+                                <a href="../edit_admin_profile.php" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
+                                    <i class="fas fa-user-edit mr-2"></i> Edit Profile
                                 </a>
                                 <div class="border-t border-gray-100"></div>
-                                <a href="logout_admin.php" class="block px-4 py-2 text-red-600 hover:bg-gray-100">
+                                <a href="../auth/logout_admin.php" class="block px-4 py-2 text-red-600 hover:bg-gray-100">
                                     <i class="fas fa-sign-out-alt mr-2"></i> Logout
                                 </a>
                             </div>
@@ -309,7 +309,7 @@ if (!empty($table_name) && !empty($id_value)) {
         <a href="search_student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-search mr-2"></i> Search
         </a>
-        <a href="student.php" class="block px-4 py-2 text-white bg-primary-900">
+        <a href="student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-users mr-2"></i> Students
         </a>
         <a href="../sitin/current_sitin.php" class="block px-4 py-2 text-white hover:bg-primary-900">

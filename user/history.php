@@ -43,12 +43,6 @@ if (!$userIdNumber) {
     }
 }
 
-// Database connection already established at the top of the file
-
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
-
 // Initialize variables
 $message = '';
 $messageType = '';
@@ -94,6 +88,54 @@ foreach ($reservations as $reservation) {
     $groupedReservations[$month][] = $reservation;
 }
 
+// Get user's sit-in history
+$sitInHistory = [];
+try {
+    $sitInQuery = $conn->prepare("SELECT s.*, l.lab_name, c.computer_number, 
+                            (SELECT COUNT(*) FROM sit_in_feedback WHERE session_id = s.session_id AND user_id = ?) as has_feedback
+                            FROM sit_in_sessions s 
+                            JOIN labs l ON s.lab_id = l.lab_id 
+                            LEFT JOIN computers c ON s.computer_id = c.computer_id
+                            WHERE s.student_id = ? AND s.status = 'inactive' 
+                            ORDER BY s.check_in_time DESC");
+    $sitInQuery->bind_param("is", $loggedInUserId, $userIdNumber);
+    $sitInQuery->execute();
+    $sitInResult = $sitInQuery->get_result();
+
+    if ($sitInResult && $sitInResult->num_rows > 0) {
+        while($row = $sitInResult->fetch_assoc()) {
+            $sitInHistory[] = $row;
+        }
+    }
+} catch (Exception $e) {
+    $message = "Error retrieving sit-in history: " . $e->getMessage();
+    $messageType = "error";
+}
+
+// Group sit-in history by month and year
+$groupedSitIns = [];
+foreach ($sitInHistory as $sitIn) {
+    $month = date('F Y', strtotime($sitIn['check_in_time']));
+    if (!isset($groupedSitIns[$month])) {
+        $groupedSitIns[$month] = [];
+    }
+    $groupedSitIns[$month][] = $sitIn;
+}
+
+// Display feedback form if requested
+$feedbackSessionId = isset($_GET['feedback']) ? intval($_GET['feedback']) : 0;
+$feedbackSession = null;
+
+if ($feedbackSessionId > 0) {
+    // Get the session details for feedback
+    foreach ($sitInHistory as $session) {
+        if ($session['session_id'] == $feedbackSessionId && $session['has_feedback'] == 0) {
+            $feedbackSession = $session;
+            break;
+        }
+    }
+}
+
 // Function to get appropriate status badge class
 function getStatusBadgeClass($status) {
     switch($status) {
@@ -128,67 +170,6 @@ function getStatusIcon($status) {
         default:
             return 'fa-info-circle';
     }
-}
-
-// Modify the database query to include sit-in data
-$sitins = [];
-try {
-    // Only attempt to get sit-in history if we have the user's ID number
-    if ($userIdNumber) {
-        // First check if sit_in_feedback table exists, if not create it
-        $table_check = $conn->query("SHOW TABLES LIKE 'sit_in_feedback'");
-        if ($table_check->num_rows == 0) {
-            // Create the feedback table
-            $create_table_sql = "CREATE TABLE sit_in_feedback (
-                feedback_id INT AUTO_INCREMENT PRIMARY KEY,
-                session_id INT NOT NULL,
-                user_id INT NOT NULL,
-                rating INT NOT NULL,
-                feedback_text TEXT,
-                submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )";
-            
-            $conn->query($create_table_sql);
-            // No need to check error here as we handle it in the CASE WHEN EXISTS below
-        }
-        
-        // Query to get user's sit-in history
-        $stmt = $conn->prepare("SELECT s.*, s.session_id, s.student_id as id_number, 
-                                CONCAT(u.firstName, ' ', u.lastName) as full_name,
-                                l.lab_name,
-                                s.purpose, 
-                                s.check_in_time as login_time, 
-                                s.check_out_time as logout_time,
-                                DATE(s.check_in_time) as sitin_date,
-                                CASE 
-                                    WHEN EXISTS (
-                                        SELECT 1 FROM information_schema.tables 
-                                        WHERE table_schema = DATABASE() 
-                                        AND table_name = 'sit_in_feedback'
-                                    ) AND EXISTS (
-                                        SELECT 1 FROM sit_in_feedback f 
-                                        WHERE f.session_id = s.session_id
-                                    ) THEN 1 
-                                    ELSE 0 
-                                END as has_feedback
-                                FROM sit_in_sessions s
-                                LEFT JOIN users u ON s.student_id = u.idNo
-                                LEFT JOIN labs l ON s.lab_id = l.lab_id
-                                WHERE s.student_id = ? 
-                                ORDER BY s.check_in_time DESC");
-        $stmt->bind_param("s", $userIdNumber);
-        $stmt->execute();
-        $historyResult = $stmt->get_result();
-
-        if ($historyResult && $historyResult->num_rows > 0) {
-            while($row = $historyResult->fetch_assoc()) {
-                $sitins[] = $row;
-            }
-        }
-    }
-} catch (Exception $e) {
-    $message = "Error retrieving sit-in history: " . $e->getMessage();
-    $messageType = "error";
 }
 
 // Check for feedback success message
@@ -369,96 +350,145 @@ if (isset($_SESSION['feedback_message']) && isset($_SESSION['feedback_status']))
             </div>
         <?php endif; ?>
         
-        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div class="p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <div class="flex items-center">
-                        <div class="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
-                            <i class="fas fa-history text-primary-600 text-xl"></i>
-                        </div>
-                        <div class="ml-4">
-                            <h2 class="text-xl font-semibold text-gray-800">Your SitIn History</h2>
-                            <p class="text-sm text-gray-500">View all your past lab activities</p>
-                        </div>
+        <div class="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-history text-primary-600"></i>
+                    </div>
+                    <div class="ml-3">
+                        <h2 class="text-lg font-semibold text-gray-800">Your SitIn History</h2>
+                        <p class="text-sm text-gray-500">Track your computer laboratory usage</p>
                     </div>
                 </div>
-                
-                <?php if (empty($sitins)): ?>
-                    <div class="text-center py-12">
-                        <div class="text-gray-400 mb-4">
-                            <i class="fas fa-laptop-house text-5xl"></i>
-                        </div>
-                        <h3 class="text-xl font-medium text-gray-700 mb-2">No SitIn History</h3>
-                        <p class="text-gray-500 mb-6">You haven't used any lab computers yet.</p>
-                    </div>
-                <?php else: ?>
-                    <!-- SitIn Table -->
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Number</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SitIn Purpose</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Laboratory</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Log in</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Log Out</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody class="bg-white divide-y divide-gray-200">
-                                <?php foreach ($sitins as $sitin): ?>
-                                    <tr class="hover:bg-gray-50">
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?php echo htmlspecialchars($sitin['id_number']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($sitin['full_name'] ?? 'You'); ?></td>
-                                        <td class="px-6 py-4 text-sm text-gray-500"><?php echo htmlspecialchars($sitin['purpose']); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($sitin['lab_name'] ?? 'Unknown Lab'); ?></td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            <?php 
-                                                echo !empty($sitin['login_time']) ? date('h:i A', strtotime($sitin['login_time'])) : 'N/A';
-                                            ?>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            <?php 
-                                                if (!empty($sitin['logout_time'])) {
-                                                    echo date('h:i A', strtotime($sitin['logout_time']));
-                                                    if (strpos($sitin['status'] ?? '', 'timeout') !== false) {
-                                                        echo ' <span class="text-xs text-amber-600">(by admin)</span>';
-                                                    }
-                                                } else {
-                                                    echo '<span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>';
-                                                }
-                                            ?>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            <?php echo date('M d, Y', strtotime($sitin['sitin_date'])); ?>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <?php if (!empty($sitin['logout_time'])): ?>
-                                                <?php if (!empty($sitin['has_feedback'])): ?>
-                                                    <span class="text-green-600">
-                                                        <i class="fas fa-check-circle mr-1"></i> Feedback Submitted
-                                                    </span>
-                                                <?php else: ?>
-                                                    <button onclick="showFeedbackModal('<?php echo $sitin['session_id']; ?>')" 
-                                                            class="text-primary-600 hover:text-primary-900 font-medium">
-                                                        <i class="fas fa-comment mr-1"></i> Feedback
-                                                    </button>
-                                                <?php endif; ?>
-                                            <?php else: ?>
-                                                <span class="text-gray-400">
-                                                    <i class="fas fa-comment mr-1"></i> Feedback
-                                                </span>
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endif; ?>
             </div>
+            
+            <?php if (empty($sitInHistory)): ?>
+                <div class="text-center py-12">
+                    <div class="text-gray-400 mb-4">
+                        <i class="fas fa-desktop text-5xl"></i>
+                    </div>
+                    <h3 class="text-xl font-medium text-gray-700 mb-2">No SitIn History Found</h3>
+                    <p class="text-gray-500 mb-6">You haven't used any laboratory computers yet.</p>
+                </div>
+            <?php else: ?>
+                <!-- SitIn History Table -->
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Number</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sit-in Purpose</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Laboratory</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time In</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time Out</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <?php foreach ($sitInHistory as $session): ?>
+                                <tr class="hover:bg-gray-50 transition-colors">
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?php echo htmlspecialchars($userIdNumber); ?></td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700"><?php echo htmlspecialchars($userName); ?></td>
+                                    <td class="px-4 py-4 text-sm text-gray-700">
+                                        <?php echo !empty($session['purpose']) ? htmlspecialchars($session['purpose']) : '<span class="text-gray-400">Not specified</span>'; ?>
+                                    </td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        <?php echo htmlspecialchars($session['lab_name']); ?>
+                                        <?php if (!empty($session['computer_number'])): ?>
+                                            <span class="text-gray-500 text-xs ml-1">(PC #<?php echo htmlspecialchars($session['computer_number']); ?>)</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        <?php echo date('h:i A', strtotime($session['check_in_time'])); ?>
+                                    </td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        <?php echo !empty($session['check_out_time']) ? date('h:i A', strtotime($session['check_out_time'])) : '<span class="text-gray-400">N/A</span>'; ?>
+                                    </td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">
+                                        <?php echo date('M d, Y', strtotime($session['check_in_time'])); ?>
+                                    </td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                        <?php if ($session['has_feedback'] == 0): ?>
+                                            <button onclick="showFeedbackModal(<?php echo $session['session_id']; ?>)" 
+                                                    class="text-primary-600 hover:text-primary-900 inline-flex items-center">
+                                                <i class="fas fa-comment-alt mr-1"></i> Feedback
+                                            </button>
+                                        <?php else: ?>
+                                            <span class="text-green-600 inline-flex items-center">
+                                                <i class="fas fa-check-circle mr-1"></i> Feedback submitted
+                                            </span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <!-- Reservation History -->
+        <div class="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden mt-6">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <div class="flex items-center">
+                    <div class="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+                        <i class="fas fa-calendar-alt text-primary-600"></i>
+                    </div>
+                    <div class="ml-3">
+                        <h2 class="text-lg font-semibold text-gray-800">Your Reservation History</h2>
+                        <p class="text-sm text-gray-500">View all your past reservations</p>
+                    </div>
+                </div>
+            </div>
+            
+            <?php if (empty($reservations)): ?>
+                <div class="text-center py-12">
+                    <div class="text-gray-400 mb-4">
+                        <i class="fas fa-calendar-times text-5xl"></i>
+                    </div>
+                    <h3 class="text-xl font-medium text-gray-700 mb-2">No Reservation History</h3>
+                    <p class="text-gray-500 mb-6">You haven't made any lab reservations yet.</p>
+                    <a href="reservation.php" class="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition">
+                        <i class="fas fa-calendar-plus mr-2"></i> Make a Reservation
+                    </a>
+                </div>
+            <?php else: ?>
+                <!-- Reservation Table -->
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Laboratory</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Computer</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purpose</th>
+                                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <?php foreach ($reservations as $reservation): ?>
+                                <tr class="hover:bg-gray-50 transition-colors">
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?php echo date('M d, Y', strtotime($reservation['reservation_date'])); ?></td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700"><?php echo $reservation['time_slot']; ?></td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700"><?php echo htmlspecialchars($reservation['lab_name']); ?></td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700"><?php echo $reservation['computer_number'] ? "PC #" . htmlspecialchars($reservation['computer_number']) : "Not assigned"; ?></td>
+                                    <td class="px-4 py-4 text-sm text-gray-700"><?php echo htmlspecialchars($reservation['purpose']); ?></td>
+                                    <td class="px-4 py-4 whitespace-nowrap">
+                                        <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full <?php echo getStatusBadgeClass($reservation['status']); ?>">
+                                            <i class="fas <?php echo getStatusIcon($reservation['status']); ?> mr-1"></i>
+                                            <?php echo ucfirst($reservation['status']); ?>
+                                        </span>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -566,16 +596,15 @@ if (isset($_SESSION['feedback_message']) && isset($_SESSION['feedback_status']))
                 star.addEventListener('click', function() {
                     const value = this.getAttribute('data-value');
                     document.getElementById('rating_value').value = value;
-                    
                     // Update star appearance
                     stars.forEach(s => {
                         const sValue = s.getAttribute('data-value');
                         if (sValue <= value) {
-                            s.classList.remove('text-gray-300');
                             s.classList.add('text-yellow-400');
+                            s.classList.remove('text-gray-300');
                         } else {
-                            s.classList.remove('text-yellow-400');
                             s.classList.add('text-gray-300');
+                            s.classList.remove('text-yellow-400');
                         }
                     });
                 });

@@ -9,6 +9,33 @@ if (!isset($_SESSION['admin_id']) && !isset($_SESSION['user_id'])) {
     exit();
 }
 
+// Check and fix system_logs table structure inline
+$table_check = $conn->query("SHOW TABLES LIKE 'system_logs'");
+if ($table_check->num_rows == 0) {
+    // Table doesn't exist, create it
+    $create_table_sql = "CREATE TABLE `system_logs` (
+        `log_id` INT AUTO_INCREMENT PRIMARY KEY,
+        `user_id` VARCHAR(50),
+        `action` VARCHAR(255) NOT NULL,
+        `action_type` VARCHAR(50) NOT NULL DEFAULT 'general',
+        `details` TEXT,
+        `ip_address` VARCHAR(45),
+        `user_agent` VARCHAR(255),
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+    
+    $conn->query($create_table_sql);
+} else {
+    // Check if action_type column exists
+    $column_check = $conn->query("SHOW COLUMNS FROM `system_logs` LIKE 'action_type'");
+    if ($column_check->num_rows == 0) {
+        // Column doesn't exist, add it
+        $add_column_sql = "ALTER TABLE `system_logs` 
+                          ADD COLUMN `action_type` VARCHAR(50) NOT NULL DEFAULT 'general' AFTER `action`";
+        $conn->query($add_column_sql);
+    }
+}
+
 // Check if sit-in ID is provided
 if (!isset($_POST['id']) || empty($_POST['id'])) {
     echo json_encode(['success' => false, 'message' => 'Sit-in ID is required']);
@@ -44,7 +71,8 @@ try {
         $stmt->execute();
         
         if ($stmt->affected_rows > 0) {
-            // Now deduct one session from student's remaining sessions
+            // Now deduct one session from student's remaining sessions - THIS IS THE ONLY PLACE
+            // WHERE WE SHOULD DEDUCT A SESSION
             $update_sessions_query = "UPDATE users SET remaining_sessions = remaining_sessions - 1 WHERE idNo = ? AND remaining_sessions > 0";
             $stmt_sessions = $conn->prepare($update_sessions_query);
             $stmt_sessions->bind_param("s", $student_id);
@@ -57,6 +85,21 @@ try {
                 $stmt_computer->bind_param("i", $computer_id);
                 $stmt_computer->execute();
             }
+            
+            // Log the timeout action
+            $admin_id = isset($_SESSION['admin_id']) ? $_SESSION['admin_id'] : null;
+            $user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : null;
+            $actor_id = $admin_id ?: $user_id;
+
+            // Use the correct column names that match the system_logs table structure
+            $log_query = "INSERT INTO system_logs (user_id, action, action_type, details, ip_address) 
+                          VALUES (?, 'timeout_sitin', 'sit_in', ?, ?)";
+            $log_details = "Sit-in session ID: $sitin_id was timed out";
+            $ip_address = $_SERVER['REMOTE_ADDR'];
+
+            $log_stmt = $conn->prepare($log_query);
+            $log_stmt->bind_param("sss", $actor_id, $log_details, $ip_address);
+            $log_stmt->execute();
             
             $conn->commit();
             echo json_encode(['success' => true, 'message' => 'Student successfully timed out and session deducted.']);

@@ -549,7 +549,7 @@ if ($logs_result && $logs_result->num_rows > 0) {
         <div class="container mx-auto">
             <nav class="flex items-center justify-between px-4 py-3">
                 <div class="flex items-center space-x-4">
-                    <a href="../admin.php" class="text-xl font-bold">Admin Dashboard</a>
+                    <a href="../admin.php" class="text-xl font-bold">Dashboard</a>
                 </div>
                 
                 <div class="flex items-center space-x-3">
