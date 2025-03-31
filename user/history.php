@@ -501,7 +501,7 @@ if (isset($_SESSION['feedback_message']) && isset($_SESSION['feedback_status']))
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <form id="feedbackForm" action="../admin/submit_feedback.php" method="post">
+            <form id="feedbackForm" action="../admin/sitin/submit_feedback.php" method="post">
                 <input type="hidden" id="session_id" name="session_id" value="">
                 
                 <div class="mb-4">
