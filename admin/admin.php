@@ -321,6 +321,51 @@ if ($result) {
             border-color: #3b82f6;
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
+
+        /* Dropdown menu styles */
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            z-index: 10;
+            min-width: 12rem;
+            padding: 0.5rem 0;
+            margin-top: 0;
+            background-color: white;
+            border-radius: 0.375rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(229, 231, 235, 1);
+            top: 100%;
+            left: 0;
+        }
+        
+        .dropdown-container:before {
+            content: '';
+            position: absolute;
+            height: 10px;
+            width: 100%;
+            bottom: -10px;
+            left: 0;
+            z-index: 9;
+        }
+        
+        .dropdown-menu.show {
+            display: block;
+            animation: fadeIn 0.2s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .nav-button {
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .nav-button:hover {
+            background-color: rgba(7, 89, 133, 0.8);
+        }
     </style>
 </head>
 <body class="font-sans h-screen flex flex-col">
@@ -355,30 +400,41 @@ if ($result) {
                 
                 <div class="flex items-center space-x-3">
                     <div class="hidden md:flex items-center space-x-2 mr-4">
-                        <?php 
-                        $nav_items = [
-                            ['admin.php', 'fa-home', 'Home', true],
-                            ['students/search_student.php', 'fa-search', 'Search'],
-                            ['students/student.php', 'fa-users', 'Students'],
-                            ['sitin/current_sitin.php', 'fa-user-check', 'Sit-In'],
-                            ['sitin/sitin_records.php', 'fa-list', 'Records'],
-                            ['sitin/sitin_reports.php', 'fa-chart-bar', 'Reports'],
-                            ['sitin/feedback_reports.php', 'fa-comment', 'Feedback'],
-                            ['reservation/reservation.php', 'fa-calendar-check', 'Reservation'],
-                        ];
+                        <a href="admin.php" class="nav-button px-3 py-2 bg-primary-800 rounded transition flex items-center">
+                            <i class="fas fa-home mr-1"></i> Home
+                        </a>
+                        <a href="students/search_student.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-search mr-1"></i> Search
+                        </a>
+                        <a href="students/student.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-users mr-1"></i> Students
+                        </a>
                         
-                        foreach ($nav_items as $item) {
-                            $url = $item[0];
-                            $icon = $item[1];
-                            $label = $item[2];
-                            $active = isset($item[3]) && $item[3];
-                            $activeClass = $active ? 'bg-primary-800' : 'hover:bg-primary-800';
-                            
-                            echo "<a href=\"$url\" class=\"px-3 py-2 rounded transition flex items-center $activeClass\">
-                                    <i class=\"fas $icon mr-1\"></i> $label
-                                  </a>";
-                        }
-                        ?>
+                        <!-- Sit-In dropdown menu -->
+                        <div class="relative inline-block dropdown-container" id="sitInDropdown">
+                            <button class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center" id="sitInMenuButton">
+                                <i class="fas fa-user-check mr-1"></i> Sit-In
+                                <i class="fas fa-chevron-down ml-1 text-xs"></i>
+                            </button>
+                            <div class="dropdown-menu" id="sitInDropdownMenu">
+                                <a href="sitin/current_sitin.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-user-check mr-1"></i> Current Sit-In
+                                </a>
+                                <a href="sitin/sitin_records.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-list mr-1"></i> Sit-In Records
+                                </a>
+                                <a href="sitin/sitin_reports.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-chart-bar mr-1"></i> Sit-In Reports
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <a href="sitin/feedback_reports.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-comment mr-1"></i> Feedback
+                        </a>
+                        <a href="reservation/reservation.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-calendar-check mr-1"></i> Reservation
+                        </a>
                     </div>
                     
                     <button id="mobile-menu-button" class="md:hidden text-white focus:outline-none">
@@ -414,19 +470,41 @@ if ($result) {
     
     <!-- Mobile Navigation Menu (hidden by default) -->
     <div id="mobile-menu" class="md:hidden bg-primary-800 hidden">
-        <?php
-        foreach ($nav_items as $item) {
-            $url = $item[0];
-            $icon = $item[1];
-            $label = $item[2];
-            $active = isset($item[3]) && $item[3];
-            $activeClass = $active ? 'bg-primary-900' : 'hover:bg-primary-900';
-            
-            echo "<a href=\"$url\" class=\"block px-4 py-2 text-white $activeClass\">
-                    <i class=\"fas $icon mr-2\"></i> $label
-                  </a>";
-        }
-        ?>
+        <a href="admin.php" class="block px-4 py-2 text-white bg-primary-900">
+            <i class="fas fa-home mr-2"></i> Home
+        </a>
+        <a href="students/search_student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-search mr-2"></i> Search
+        </a>
+        <a href="students/student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-users mr-2"></i> Students
+        </a>
+        
+        <!-- Mobile Sit-In dropdown with toggle -->
+        <div class="relative">
+            <button id="mobile-sitin-dropdown" class="w-full text-left block px-4 py-2 text-white hover:bg-primary-900 flex justify-between items-center">
+                <span><i class="fas fa-user-check mr-2"></i> Sit-In</span>
+                <i class="fas fa-chevron-down text-xs"></i>
+            </button>
+            <div id="mobile-sitin-menu" class="hidden bg-primary-950 py-2">
+                <a href="sitin/current_sitin.php" class="block px-6 py-2 text-white hover:bg-primary-900">
+                    <i class="fas fa-user-check mr-2"></i> Current Sit-In
+                </a>
+                <a href="sitin/sitin_records.php" class="block px-6 py-2 text-white hover:bg-primary-900">
+                    <i class="fas fa-list mr-2"></i> Sit-In Records
+                </a>
+                <a href="sitin/sitin_reports.php" class="block px-6 py-2 text-white hover:bg-primary-900">
+                    <i class="fas fa-chart-bar mr-2"></i> Sit-In Reports
+                </a>
+            </div>
+        </div>
+        
+        <a href="sitin/feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-comment mr-2"></i> Feedback
+        </a>
+        <a href="reservation/reservation.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-calendar-check mr-2"></i> Reservation
+        </a>
     </div>
 
     <!-- Main Content -->
@@ -586,13 +664,78 @@ if ($result) {
             document.getElementById('userMenu').classList.toggle('hidden');
         }
         
-        // Close user dropdown when clicking outside
+        // Desktop Sit-In dropdown toggle implementation
+        const sitInDropdown = document.getElementById('sitInDropdown');
+        const sitInMenuButton = document.getElementById('sitInMenuButton');
+        const sitInDropdownMenu = document.getElementById('sitInDropdownMenu');
+        
+        if (sitInMenuButton && sitInDropdownMenu) {
+            let isMouseOverDropdown = false;
+            let menuTimeout = null;
+            
+            sitInMenuButton.addEventListener('click', function(event) {
+                event.stopPropagation();
+                sitInDropdownMenu.classList.toggle('show');
+            });
+            
+            sitInDropdown.addEventListener('mouseenter', function() {
+                isMouseOverDropdown = true;
+                clearTimeout(menuTimeout);
+                
+                if (window.innerWidth >= 768) {
+                    sitInDropdownMenu.classList.add('show');
+                }
+            });
+            
+            sitInDropdown.addEventListener('mouseleave', function() {
+                isMouseOverDropdown = false;
+                
+                menuTimeout = setTimeout(() => {
+                    if (!isMouseOverDropdown && window.innerWidth >= 768) {
+                        sitInDropdownMenu.classList.remove('show');
+                    }
+                }, 150);
+            });
+            
+            sitInDropdownMenu.addEventListener('mouseenter', function() {
+                isMouseOverDropdown = true;
+                clearTimeout(menuTimeout);
+            });
+            
+            sitInDropdownMenu.addEventListener('mouseleave', function() {
+                isMouseOverDropdown = false;
+                
+                if (window.innerWidth >= 768) {
+                    menuTimeout = setTimeout(() => {
+                        if (!isMouseOverDropdown) {
+                            sitInDropdownMenu.classList.remove('show');
+                        }
+                    }, 150);
+                }
+            });
+        }
+        
+        // Mobile Sit-In dropdown toggle
+        const mobileSitInDropdown = document.getElementById('mobile-sitin-dropdown');
+        const mobileSitInMenu = document.getElementById('mobile-sitin-menu');
+        
+        if (mobileSitInDropdown && mobileSitInMenu) {
+            mobileSitInDropdown.addEventListener('click', function() {
+                mobileSitInMenu.classList.toggle('hidden');
+            });
+        }
+        
+        // Close dropdowns when clicking outside
         window.addEventListener('click', function(e) {
-            if (!document.getElementById('userDropdown').contains(e.target)) {
-                document.getElementById('userMenu').classList.add('hidden');
+            if (!document.getElementById('userDropdown')?.contains(e.target)) {
+                document.getElementById('userMenu')?.classList.add('hidden');
+            }
+            
+            if (sitInDropdownMenu && !sitInDropdown?.contains(e.target)) {
+                sitInDropdownMenu.classList.remove('show');
             }
         });
-
+        
         // Initialize the Pie Charts for Student Distribution
         document.addEventListener('DOMContentLoaded', function() {
             // Function to create doughnut chart

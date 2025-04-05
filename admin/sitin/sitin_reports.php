@@ -287,15 +287,26 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
                         <a href="../students/student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-users mr-1"></i> Students
                         </a>
-                        <a href="current_sitin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
-                            <i class="fas fa-user-check mr-1"></i> Sit-In
-                        </a>
-                        <a href="sitin_records.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
-                            <i class="fas fa-list mr-1"></i> Records
-                        </a>
-                        <a href="sitin_reports.php" class="px-3 py-2 bg-primary-800 rounded transition flex items-center">
-                            <i class="fas fa-chart-bar mr-1"></i> Reports
-                        </a>
+                        <!-- Sit-In dropdown menu -->
+                        <div class="relative inline-block" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
+                            <button class="px-3 py-2 bg-primary-800 rounded transition flex items-center">
+                                <i class="fas fa-user-check mr-1"></i> Sit-In
+                                <i class="fas fa-chevron-down ml-1 text-xs"></i>
+                            </button>
+                            <div x-show="open" class="absolute z-10 mt-0 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5" style="margin-top: -1px; padding-top: 8px;">
+                                <div class="py-1">
+                                    <a href="current_sitin.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                        <i class="fas fa-user-check mr-1"></i> Current Sit-In
+                                    </a>
+                                    <a href="sitin_records.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                        <i class="fas fa-list mr-1"></i> Sit-In Records
+                                    </a>
+                                    <a href="sitin_reports.php" class="block px-4 py-2 text-sm bg-gray-100 text-primary-700 font-medium">
+                                        <i class="fas fa-chart-bar mr-1"></i> Sit-In Reports
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
                         <a href="feedback_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-comment mr-1"></i> Feedback
                         </a>
@@ -346,15 +357,24 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
         <a href="../students/student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-users mr-2"></i> Students
         </a>
-        <a href="current_sitin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
-            <i class="fas fa-user-check mr-2"></i> Sit-In
-        </a>
-        <a href="sitin_records.php" class="block px-4 py-2 text-white hover:bg-primary-900">
-            <i class="fas fa-list mr-2"></i> Records
-        </a>
-        <a href="sitin_reports.php" class="block px-4 py-2 text-white bg-primary-900">
-            <i class="fas fa-chart-bar mr-2"></i> Reports
-        </a>
+        <!-- Mobile Sit-In dropdown with toggle -->
+        <div class="relative">
+            <button id="mobile-sitin-dropdown" class="w-full text-left block px-4 py-2 text-white bg-primary-900 flex justify-between items-center">
+                <span><i class="fas fa-user-check mr-2"></i> Sit-In</span>
+                <i class="fas fa-chevron-down text-xs"></i>
+            </button>
+            <div id="mobile-sitin-menu" class="hidden bg-primary-950 py-2">
+                <a href="current_sitin.php" class="block px-6 py-2 text-white hover:bg-primary-900">
+                    <i class="fas fa-user-check mr-2"></i> Current Sit-In
+                </a>
+                <a href="sitin_records.php" class="block px-6 py-2 text-white hover:bg-primary-900">
+                    <i class="fas fa-list mr-2"></i> Sit-In Records
+                </a>
+                <a href="sitin_reports.php" class="block px-6 py-2 text-white bg-primary-800">
+                    <i class="fas fa-chart-bar mr-2"></i> Sit-In Reports
+                </a>
+            </div>
+        </div>
         <a href="feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-comment mr-2"></i> Feedback
         </a>
@@ -526,6 +546,16 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
     </footer>
         
     <script>
+        // Initialize Alpine.js
+        document.addEventListener('alpine:init', () => {
+            // Any Alpine.js initialization can go here
+        });
+
+        // Mobile dropdown toggle for Sit-In menu
+        document.getElementById('mobile-sitin-dropdown').addEventListener('click', function() {
+            document.getElementById('mobile-sitin-menu').classList.toggle('hidden');
+        });
+        
         // Toggle mobile menu
         document.getElementById('mobile-menu-button').addEventListener('click', function() {
             document.getElementById('mobile-menu').classList.toggle('hidden');
@@ -754,5 +784,8 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
             }
         });
     </script>
+    
+    <!-- Add Alpine.js for dropdown functionality -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </body>
 </html>
