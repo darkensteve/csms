@@ -250,6 +250,11 @@ if (isset($_GET['deleted']) && $_GET['deleted'] == '1') {
 if (isset($_GET['updated']) && $_GET['updated'] == '1') {
     $success_message = "Student record successfully updated.";
 }
+
+// Add success message for reset all sessions
+if (isset($_GET['reset_all']) && $_GET['reset_all'] == '1') {
+    $success_message = "All students' remaining sessions have been reset to 30.";
+}
 ?>
 
 <!DOCTYPE html>
@@ -477,6 +482,9 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
                                 <option value="ENG">Engineering</option>
                                 <option value="BUS">Business</option>
                             </select>
+                            <a href="reset_all_sessions.php" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md transition duration-200 flex items-center" onclick="return confirm('Are you sure you want to reset ALL students\' remaining sessions to 30? This action cannot be undone.')">
+                                <i class="fas fa-sync-alt mr-2"></i> Reset All Sessions
+                            </a>
                         </div>
                     </div>
                     

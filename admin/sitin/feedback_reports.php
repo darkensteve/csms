@@ -33,7 +33,7 @@ if ($table_check->num_rows == 0) {
         session_id INT NOT NULL,
         user_id INT NOT NULL,
         rating INT NOT NULL,
-        feedback_text TEXT,
+        feedback TEXT,
         submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )";
     
@@ -68,7 +68,7 @@ if (!empty($filter_date_from) && !empty($filter_date_to)) {
 
 if (!empty($search_term)) {
     $search_param = "%$search_term%";
-    $count_query .= " AND (u.firstName LIKE ? OR u.lastName LIKE ? OR u.idNo LIKE ? OR f.feedback_text LIKE ?)";
+    $count_query .= " AND (u.firstName LIKE ? OR u.lastName LIKE ? OR u.idNo LIKE ? OR f.feedback LIKE ?)";
     $count_params[] = $search_param;
     $count_params[] = $search_param;
     $count_params[] = $search_param;
@@ -125,7 +125,7 @@ if (!empty($filter_date_from) && !empty($filter_date_to)) {
 
 if (!empty($search_term)) {
     $search_param = "%$search_term%";
-    $query .= " AND (u.firstName LIKE ? OR u.lastName LIKE ? OR u.idNo LIKE ? OR f.feedback_text LIKE ?)";
+    $query .= " AND (u.firstName LIKE ? OR u.lastName LIKE ? OR u.idNo LIKE ? OR f.feedback LIKE ?)";
     $params[] = $search_param;
     $params[] = $search_param;
     $params[] = $search_param;
@@ -529,7 +529,7 @@ if ($rating_stats['total'] > 0) {
                                     
                                     <div class="mt-3 p-3 bg-primary-50 rounded-lg text-gray-700">
                                         <div class="text-xs text-primary-800 mb-1">Feedback</div>
-                                        <p class="text-sm"><?php echo nl2br(htmlspecialchars($feedback['feedback_text'])); ?></p>
+                                        <p class="text-sm"><?php echo nl2br(htmlspecialchars($feedback['feedback'])); ?></p>
                                     </div>
                                 </div>
                                 <?php endforeach; ?>

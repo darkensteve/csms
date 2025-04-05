@@ -546,6 +546,29 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
                 dateFormat: "Y-m-d",
                 allowInput: true,
             });
+            
+            // Get the UC logo as base64 string for PDF export
+            let ucLogoBase64 = '';
+            $.ajax({
+                url: '../../assets/get_logo_base64.php',
+                type: 'GET',
+                async: false, // Important: wait for this to complete
+                dataType: 'json',
+                success: function(response) {
+                    if (response.success) {
+                        ucLogoBase64 = response.data;
+                    } else {
+                        console.error('Failed to load logo:', response.message);
+                        // Fallback to text UC logo if image can't be loaded
+                        ucLogoBase64 = null;
+                    }
+                },
+                error: function() {
+                    console.error('AJAX request failed for logo');
+                    ucLogoBase64 = null;
+                }
+            });
+            
             // Initialize DataTables with export buttons
             if (document.getElementById('reportTable')) {
                 $('#reportTable').DataTable({
@@ -564,12 +587,166 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
                         {
                             extend: 'pdf',
                             text: '<i class="fas fa-file-pdf mr-1"></i> PDF',
-                            className: 'bg-red-600 hover:bg-red-700'
+                            className: 'bg-red-600 hover:bg-red-700',
+                            orientation: 'landscape',
+                            pageSize: 'A4',
+                            title: function() {
+                                let reportType = '<?= $report_type ?>';
+                                let dateRange = '';
+                                
+                                if (reportType === 'daily') {
+                                    dateRange = '<?= date('F d, Y', strtotime($start_date)) ?>';
+                                } else if (reportType === 'weekly') {
+                                    dateRange = '<?= date('M d', strtotime($start_date)) ?> - <?= date('M d, Y', strtotime($end_date)) ?>';
+                                } else if (reportType === 'monthly') {
+                                    dateRange = '<?= date('F Y', strtotime($start_date)) ?>';
+                                }
+                                
+                                return reportType.charAt(0).toUpperCase() + reportType.slice(1) + ' Report (' + dateRange + ')';
+                            },
+                            exportOptions: {
+                                columns: [0, 1, 2, 3, 4, 5]
+                            },
+                            customize: function(doc) {
+                                // Add a footer to each page
+                                var now = new Date();
+                                var dateStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
+                                
+                                // Set document styles
+                                doc.styles.tableHeader.fontSize = 10;
+                                doc.styles.tableHeader.alignment = 'left';
+                                doc.styles.tableBodyEven.alignment = 'left';
+                                doc.styles.tableBodyOdd.alignment = 'left';
+                                
+                                // Set column widths
+                                doc.content[1].table.widths = ['15%', '20%', '20%', '15%', '15%', '15%'];
+                                
+                                // Create a custom header with logo and university name
+                                doc.content.splice(0, 1, {
+                                    margin: [0, 0, 0, 15],
+                                    alignment: 'center',
+                                    stack: [
+                                        // Use the retrieved UC logo image if available, otherwise use styled text
+                                        ucLogoBase64 ? {
+                                            image: ucLogoBase64,
+                                            width: 100,
+                                            alignment: 'center'
+                                        } : {
+                                            text: 'UC',
+                                            style: 'logo',
+                                            alignment: 'center'
+                                        },
+                                        { text: 'University Of Cebu', style: 'universityName' },
+                                        { text: 'CCS Laboratory Reports', style: 'mainHeader' },
+                                        { 
+                                            text: doc.title, 
+                                            style: 'subheader',
+                                            margin: [0, 5, 0, 10]
+                                        }
+                                    ]
+                                });
+                                
+                                // Add custom styles
+                                doc.styles.logo = {
+                                    fontSize: 42,
+                                    bold: true,
+                                    color: '#0369a1', // Primary-700 color
+                                    margin: [0, 0, 0, 10]
+                                };
+                                
+                                doc.styles.universityName = {
+                                    fontSize: 16,
+                                    bold: true,
+                                    margin: [0, 10, 0, 0]
+                                };
+                                
+                                doc.styles.mainHeader = {
+                                    fontSize: 14,
+                                    bold: true,
+                                    margin: [0, 5, 0, 0]
+                                };
+                                
+                                doc.styles.subheader = {
+                                    fontSize: 12,
+                                    italics: true,
+                                    color: '#666666'
+                                };
+                                
+                                // Add footer
+                                doc.footer = function(currentPage, pageCount) {
+                                    return {
+                                        text: 'Page ' + currentPage.toString() + ' of ' + pageCount + ' - Generated on: ' + dateStr,
+                                        alignment: 'center',
+                                        fontSize: 8
+                                    };
+                                };
+                            }
                         },
                         {
                             extend: 'print',
                             text: '<i class="fas fa-print mr-1"></i> Print',
-                            className: 'bg-blue-600 hover:bg-blue-700'
+                            className: 'bg-blue-600 hover:bg-blue-700',
+                            title: function() {
+                                let reportType = '<?= $report_type ?>';
+                                let dateRange = '';
+                                
+                                if (reportType === 'daily') {
+                                    dateRange = '<?= date('F d, Y', strtotime($start_date)) ?>';
+                                } else if (reportType === 'weekly') {
+                                    dateRange = '<?= date('M d', strtotime($start_date)) ?> - <?= date('M d, Y', strtotime($end_date)) ?>';
+                                } else if (reportType === 'monthly') {
+                                    dateRange = '<?= date('F Y', strtotime($start_date)) ?>';
+                                }
+                                
+                                return reportType.charAt(0).toUpperCase() + reportType.slice(1) + ' Report (' + dateRange + ')';
+                            },
+                            customize: function(win) {
+                                // Get the window document
+                                var doc = win.document;
+                                
+                                // Add UC Logo and styling to the print view
+                                $(doc.body).prepend(
+                                    '<div style="text-align:center; margin-bottom:20px;">' +
+                                    (ucLogoBase64 ? 
+                                        '<img src="' + ucLogoBase64 + '" style="width:100px; margin:0 auto 10px auto;">' : 
+                                        '<div style="font-size:42px; font-weight:bold; color:#0369a1; margin-bottom:10px;">UC</div>') +
+                                    '<div style="font-size:16px; font-weight:bold;">University Of Cebu</div>' +
+                                    '<div style="font-size:14px; font-weight:bold; margin:5px 0;">CCS Laboratory Reports</div>' +
+                                    '</div>'
+                                );
+                                
+                                // Apply styles to the print view
+                                $(doc.body).css('padding', '15px');
+                                $(doc.body).find('table')
+                                    .addClass('compact')
+                                    .css({
+                                        'font-size': '10pt',
+                                        'border-collapse': 'collapse',
+                                        'width': '100%'
+                                    });
+                                $(doc.body).find('table th')
+                                    .css({
+                                        'border': '1px solid #ddd',
+                                        'padding': '8px',
+                                        'text-align': 'left',
+                                        'background-color': '#f2f2f2'
+                                    });
+                                $(doc.body).find('table td')
+                                    .css({
+                                        'border': '1px solid #ddd',
+                                        'padding': '8px',
+                                        'text-align': 'left'
+                                    });
+                                    
+                                // Add footer with date
+                                var now = new Date();
+                                var dateStr = now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
+                                $(doc.body).append(
+                                    '<div style="text-align:center; margin-top:20px; font-size:8pt; color:#666;">' +
+                                    'Generated on: ' + dateStr +
+                                    '</div>'
+                                );
+                            }
                         }
                     ],
                     "pageLength": 25
