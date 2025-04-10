@@ -255,6 +255,12 @@ if (isset($_GET['updated']) && $_GET['updated'] == '1') {
 if (isset($_GET['reset_all']) && $_GET['reset_all'] == '1') {
     $success_message = "All students' remaining sessions have been reset to 30.";
 }
+
+// Check for success message in session (from add_student.php)
+if (isset($_SESSION['success_message'])) {
+    $success_message = $_SESSION['success_message'];
+    unset($_SESSION['success_message']);
+}
 ?>
 
 <!DOCTYPE html>
@@ -537,6 +543,9 @@ if (isset($_GET['reset_all']) && $_GET['reset_all'] == '1') {
                             </div>
                         </form>
                         <div class="flex space-x-2">
+                            <a href="add_student.php" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition duration-200 flex items-center">
+                                <i class="fas fa-user-plus mr-2"></i> Add New Student
+                            </a>
                             <select class="border border-gray-300 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500">
                                 <option value="">All Years</option>
                                 <option value="1">First Year</option>
@@ -611,7 +620,7 @@ if (isset($_GET['reset_all']) && $_GET['reset_all'] == '1') {
                                             
                                             echo '<th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">' . 
                                                 htmlspecialchars($col) . 
-                                                '</th>';    
+                                                '</th>';
                                             $headers_displayed++;
                                         }
                                         ?>
@@ -635,7 +644,7 @@ if (isset($_GET['reset_all']) && $_GET['reset_all'] == '1') {
                                             
                                             echo '<td class="px-4 py-3 text-sm text-gray-700">' .
                                                 htmlspecialchars($student[$col] ?? 'N/A') .
-                                                '</td>';    
+                                                '</td>';
                                             $cols_displayed++;
                                         }
                                         ?>
@@ -682,8 +691,7 @@ if (isset($_GET['reset_all']) && $_GET['reset_all'] == '1') {
                                     <nav class="relative z-0 inline-flex rounded-md shadow-sm space-x-2" aria-label="Pagination">
                                         <!-- Previous Page Button - Enhanced -->
                                         <a href="<?php echo $page > 1 ? '?page=' . ($page - 1) . (!empty($search_term) ? '&search=' . urlencode($search_term) : '') : '#'; ?>" 
-                                           class="<?php echo $page > 1 ? 'hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500' : 'opacity-50 cursor-not-allowed'; ?> 
-                                           relative inline-flex items-center px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                           class="<?php echo $page > 1 ? 'hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500' : 'opacity-50 cursor-not-allowed'; ?> relative inline-flex items-center px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700">
                                             <i class="fas fa-chevron-left mr-1 sm:mr-2"></i>
                                             <span class="hidden sm:inline">Previous</span>
                                         </a>
@@ -701,8 +709,7 @@ if (isset($_GET['reset_all']) && $_GET['reset_all'] == '1') {
                                             for ($i = $start_page; $i <= $end_page; $i++): 
                                             ?>
                                             <a href="?page=<?php echo $i; ?><?php echo !empty($search_term) ? '&search=' . urlencode($search_term) : ''; ?>" 
-                                               class="<?php echo $i == $page ? 'bg-primary-50 border-primary-500 text-primary-600' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'; ?> 
-                                               relative inline-flex items-center px-4 py-2 border text-sm font-medium mx-1">
+                                               class="<?php echo $i == $page ? 'bg-primary-50 border-primary-500 text-primary-600' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'; ?> relative inline-flex items-center px-4 py-2 border text-sm font-medium mx-1">
                                                 <?php echo $i; ?>
                                             </a>
                                             <?php endfor; ?>
@@ -710,8 +717,7 @@ if (isset($_GET['reset_all']) && $_GET['reset_all'] == '1') {
                                         
                                         <!-- Next Page Button - Enhanced -->
                                         <a href="<?php echo $page < $total_pages ? '?page=' . ($page + 1) . (!empty($search_term) ? '&search=' . urlencode($search_term) : '') : '#'; ?>" 
-                                           class="<?php echo $page < $total_pages ? 'hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500' : 'opacity-50 cursor-not-allowed'; ?> 
-                                           relative inline-flex items-center px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                           class="<?php echo $page < $total_pages ? 'hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500' : 'opacity-50 cursor-not-allowed'; ?> relative inline-flex items-center px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700">
                                             <span class="hidden sm:inline">Next</span>
                                             <i class="fas fa-chevron-right ml-1 sm:ml-2"></i>
                                         </a>
@@ -744,7 +750,7 @@ if (isset($_GET['reset_all']) && $_GET['reset_all'] == '1') {
             &copy; 2024 SitIn System - Admin Dashboard. All rights reserved.
         </div>
     </footer>
-
+    
     <script>
         // Toggle mobile menu
         document.getElementById('mobile-menu-button').addEventListener('click', function() {
@@ -782,16 +788,14 @@ if (isset($_GET['reset_all']) && $_GET['reset_all'] == '1') {
             // Mouse enter/leave for the entire dropdown container
             sitInDropdown.addEventListener('mouseenter', function() {
                 isMouseOverDropdown = true;
-                clearTimeout(menuTimeout);
-                
                 if (window.innerWidth >= 768) { // Only on desktop
+                    clearTimeout(menuTimeout);
                     sitInDropdownMenu.classList.add('show');
                 }
             });
             
             sitInDropdown.addEventListener('mouseleave', function() {
                 isMouseOverDropdown = false;
-                
                 // Small delay before hiding to improve UX
                 menuTimeout = setTimeout(() => {
                     if (!isMouseOverDropdown && window.innerWidth >= 768) {
@@ -808,14 +812,13 @@ if (isset($_GET['reset_all']) && $_GET['reset_all'] == '1') {
             
             sitInDropdownMenu.addEventListener('mouseleave', function() {
                 isMouseOverDropdown = false;
-                
-                if (window.innerWidth >= 768) {
-                    menuTimeout = setTimeout(() => {
-                        if (!isMouseOverDropdown) {
+                menuTimeout = setTimeout(() => {
+                    if (!isMouseOverDropdown) {
+                        if (window.innerWidth >= 768) {
                             sitInDropdownMenu.classList.remove('show');
                         }
-                    }, 150);
-                }
+                    }
+                }, 150);
             });
         }
         
@@ -844,9 +847,9 @@ if (isset($_GET['reset_all']) && $_GET['reset_all'] == '1') {
         document.addEventListener('DOMContentLoaded', function() {
             const notifications = document.querySelectorAll('.notification');
             notifications.forEach(notification => {
+                notification.style.transition = 'opacity 0.5s ease-out';
                 setTimeout(() => {
                     notification.style.opacity = '0';
-                    notification.style.transition = 'opacity 0.5s ease-out';
                     setTimeout(() => {
                         notification.style.display = 'none';
                     }, 500);

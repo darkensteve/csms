@@ -9,8 +9,13 @@ if (!isset($_SESSION['admin_id'])) {
     exit();
 }
 
-// Set default timezone
-date_default_timezone_set('Asia/Manila');
+// Set timezone to match system-wide setting
+date_default_timezone_set('Asia/Singapore');
+
+// Utility function to format dates with the correct timezone
+function formatDateTime($dateTime, $format = 'M d, Y g:i A') {
+    return date($format, strtotime($dateTime));
+}
 
 // Initialize variables
 $admin_username = $_SESSION['admin_username'] ?? 'Admin';
@@ -49,7 +54,6 @@ $count_query = "SELECT COUNT(*) as total
                 JOIN users u ON f.user_id = u.user_id
                 JOIN labs l ON s.lab_id = l.lab_id
                 WHERE 1=1";
-
 $count_params = [];
 $count_types = "";
 
@@ -78,14 +82,12 @@ if (!empty($search_term)) {
 
 $total_records = 0;
 $stmt = $conn->prepare($count_query);
-
 if ($stmt) {
     if (!empty($count_params)) {
         $stmt->bind_param($count_types, ...$count_params);
     }
     $stmt->execute();
     $count_result = $stmt->get_result();
-    
     if ($count_result && $row = $count_result->fetch_assoc()) {
         $total_records = $row['total'];
     }
@@ -106,7 +108,6 @@ $query = "SELECT f.*, s.purpose, s.check_in_time, s.check_out_time,
           JOIN users u ON f.user_id = u.user_id
           JOIN labs l ON s.lab_id = l.lab_id
           WHERE 1=1";
-
 $params = [];
 $types = "";
 
@@ -141,14 +142,12 @@ $types .= "ii";
 // Prepare and execute the query
 $feedback_data = [];
 $stmt = $conn->prepare($query);
-
 if ($stmt) {
     if (!empty($params)) {
         $stmt->bind_param($types, ...$params);
     }
     $stmt->execute();
     $result = $stmt->get_result();
-    
     if ($result) {
         while ($row = $result->fetch_assoc()) {
             $feedback_data[] = $row;
@@ -267,7 +266,6 @@ if ($rating_stats['total'] > 0) {
             transition: all 0.2s ease;
             position: relative;
         }
-        
         .nav-button:hover {
             background-color: rgba(7, 89, 133, 0.8);
         }
@@ -281,7 +279,6 @@ if ($rating_stats['total'] > 0) {
                 <div class="flex items-center space-x-4">
                     <a href="../admin.php" class="text-xl font-bold">Dashboard</a>
                 </div>
-                
                 <div class="flex items-center space-x-3">
                     <div class="hidden md:flex items-center space-x-2 mr-4">
                         <a href="../admin.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
@@ -444,7 +441,6 @@ if ($rating_stats['total'] > 0) {
                                 <button type="submit" class="px-3 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition flex items-center text-sm">
                                     <i class="fas fa-filter mr-1"></i> Apply
                                 </button>
-                                
                                 <?php if (!empty($filter_rating) || !empty($search_term) || $filter_date_from != date('Y-m-d', strtotime('-30 days')) || $filter_date_to != date('Y-m-d')): ?>
                                 <a href="feedback_reports.php" class="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition flex items-center text-sm">
                                     <i class="fas fa-times mr-1"></i> Clear
@@ -472,10 +468,9 @@ if ($rating_stats['total'] > 0) {
                                         </span>
                                     </div>
                                 </div>
-                                
                                 <?php for ($i = 5; $i >= 1; $i--): 
                                     $count = $rating_stats['ratings'][$i];
-                                    $percent = $rating_stats['total'] > 0 ? ($count / $rating_stats['total']) * 100 : 0;
+                                    $percent = $rating_stats['total'] > 0 ? ($count / $rating_stats['total']) * 100 : 0; 
                                 ?>
                                 <div class="mb-2">
                                     <div class="flex items-center">
@@ -504,7 +499,6 @@ if ($rating_stats['total'] > 0) {
                                         <div class="text-sm text-gray-500">Total Feedback</div>
                                         <div class="text-2xl font-bold text-primary-700"><?php echo $rating_stats['total']; ?></div>
                                     </div>
-                                    
                                     <div class="bg-white p-3 rounded-lg shadow-sm">
                                         <div class="text-sm text-gray-500">Date Range</div>
                                         <div class="text-sm font-medium text-primary-700">
@@ -576,7 +570,7 @@ if ($rating_stats['total'] > 0) {
                                                 </div>
                                             </div>
                                             <div class="text-xs text-gray-500 mt-1">
-                                                Submitted on <?php echo date('M d, Y g:i A', strtotime($feedback['submitted_at'])); ?>
+                                                Submitted on <?php echo formatDateTime($feedback['submitted_at']); ?>
                                             </div>
                                         </div>
                                         <div class="text-sm">
@@ -586,16 +580,14 @@ if ($rating_stats['total'] > 0) {
                                             </div>
                                             <div class="flex items-center text-gray-600 text-xs">
                                                 <i class="far fa-clock mr-1"></i>
-                                                <span><?php echo date('M d, Y', strtotime($feedback['check_in_time'])); ?></span>
+                                                <span><?php echo formatDateTime($feedback['check_in_time'], 'M d, Y'); ?></span>
                                             </div>
                                         </div>
                                     </div>
-                                    
                                     <div class="mt-3 bg-gray-50 p-3 rounded-lg">
                                         <div class="text-xs text-gray-500 mb-1">Purpose</div>
                                         <div class="text-sm text-gray-700"><?php echo htmlspecialchars($feedback['purpose']); ?></div>
                                     </div>
-                                    
                                     <div class="mt-3 p-3 bg-primary-50 rounded-lg text-gray-700">
                                         <div class="text-xs text-primary-800 mb-1">Feedback</div>
                                         <p class="text-sm"><?php echo nl2br(htmlspecialchars($feedback['feedback'])); ?></p>
@@ -628,11 +620,10 @@ if ($rating_stats['total'] > 0) {
                                     </span>
                                     <?php endif; ?>
                                     
-                                    <?php
+                                    <?php 
                                     // Determine which page numbers to show
                                     $start_page = max(1, $page - 2);
                                     $end_page = min($total_pages, $start_page + 4);
-                                    
                                     if ($end_page - $start_page < 4) {
                                         $start_page = max(1, $end_page - 4);
                                     }
@@ -690,11 +681,11 @@ if ($rating_stats['total'] > 0) {
     </footer>
     
     <script>
-        // Toggle mobile menu
+        // Toggle mobile menu    
         document.getElementById('mobile-menu-button').addEventListener('click', function() {
             document.getElementById('mobile-menu').classList.toggle('hidden');
         });
-
+        
         // User dropdown toggle
         function toggleUserDropdown() {
             document.getElementById('userMenu').classList.toggle('hidden');
@@ -720,7 +711,6 @@ if ($rating_stats['total'] > 0) {
             sitInDropdown.addEventListener('mouseenter', function() {
                 isMouseOverDropdown = true;
                 clearTimeout(menuTimeout);
-                
                 if (window.innerWidth >= 768) { // Only on desktop
                     sitInDropdownMenu.classList.add('show');
                 }
@@ -728,7 +718,6 @@ if ($rating_stats['total'] > 0) {
             
             sitInDropdown.addEventListener('mouseleave', function() {
                 isMouseOverDropdown = false;
-                
                 // Small delay before hiding to improve UX
                 menuTimeout = setTimeout(() => {
                     if (!isMouseOverDropdown && window.innerWidth >= 768) {
@@ -745,7 +734,6 @@ if ($rating_stats['total'] > 0) {
             
             sitInDropdownMenu.addEventListener('mouseleave', function() {
                 isMouseOverDropdown = false;
-                
                 if (window.innerWidth >= 768) {
                     menuTimeout = setTimeout(() => {
                         if (!isMouseOverDropdown) {
@@ -771,7 +759,6 @@ if ($rating_stats['total'] > 0) {
             if (!document.getElementById('userDropdown')?.contains(e.target)) {
                 document.getElementById('userMenu')?.classList.add('hidden');
             }
-            
             if (sitInDropdownMenu && !sitInDropdown?.contains(e.target)) {
                 sitInDropdownMenu.classList.remove('show');
             }

@@ -29,12 +29,56 @@ $message = '';
 $messageType = '';
 $setupNeeded = false;
 
-// Check if the reservations table exists
-$tableExists = $conn->query("SHOW TABLES LIKE 'reservations'")->num_rows > 0;
-if (!$tableExists) {
-    $message = "The reservations system needs to be set up. Please click <a href='create_tables.php' class='font-bold underline'>here</a> to set up the necessary database tables.";
-    $messageType = "error";
-    $setupNeeded = true;
+// Check if reservations table exists
+$table_check = $conn->query("SHOW TABLES LIKE 'reservations'");
+if ($table_check->num_rows == 0) {
+    // Table doesn't exist, include the table creation script
+    if (file_exists('../admin/setup/create_tables.php')) {
+        include_once '../admin/setup/create_tables.php';
+    } else {
+        // Create the table directly if the script isn't found
+        $create_table = "CREATE TABLE IF NOT EXISTS `reservations` (
+            `reservation_id` INT(11) NOT NULL AUTO_INCREMENT,
+            `user_id` INT(11) NOT NULL,
+            `lab_id` INT(11) NOT NULL,
+            `computer_id` INT(11) DEFAULT NULL,
+            `reservation_date` DATE NOT NULL,
+            `time_slot` VARCHAR(50) NOT NULL,
+            `purpose` TEXT NOT NULL,
+            `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
+            `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (`reservation_id`),
+            INDEX (`user_id`),
+            INDEX (`computer_id`),
+            CONSTRAINT `fk_res_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`USER_ID`) ON DELETE CASCADE ON UPDATE CASCADE,
+            CONSTRAINT `fk_res_lab` FOREIGN KEY (`lab_id`) REFERENCES `labs` (`lab_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+            CONSTRAINT `fk_res_computer` FOREIGN KEY (`computer_id`) REFERENCES `computers` (`computer_id`) ON DELETE SET NULL ON UPDATE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+        
+        if (!$conn->query($create_table)) {
+            // If the query fails (possibly due to foreign key constraints), try without constraints
+            $create_table_simple = "CREATE TABLE IF NOT EXISTS `reservations` (
+                `reservation_id` INT(11) NOT NULL AUTO_INCREMENT,
+                `user_id` INT(11) NOT NULL,
+                `lab_id` INT(11) NOT NULL,
+                `computer_id` INT(11) DEFAULT NULL,
+                `reservation_date` DATE NOT NULL,
+                `time_slot` VARCHAR(50) NOT NULL,
+                `purpose` TEXT NOT NULL,
+                `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
+                `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (`reservation_id`),
+                INDEX (`user_id`),
+                INDEX (`computer_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
+            
+            $conn->query($create_table_simple);
+        }
+        
+        // Set a message to inform the user
+        $message = "Reservation system has been set up. You can now make reservations.";
+        $messageType = "success";
+    }
 }
 
 // Fetch user details for form pre-fill
@@ -83,42 +127,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['cancel_reservation']))
                 $updateComputer = $conn->prepare("UPDATE computers SET status = 'available' WHERE computer_id = ?");
                 $updateComputer->bind_param("i", $computerId);
                 $updateComputer->execute();
+                $messageType = "success";
+                $message = "Reservation cancelled successfully.";
             }
-            
-            // Check if the reservation_logs table exists
-            $reservationLogsExists = $conn->query("SHOW TABLES LIKE 'reservation_logs'")->num_rows > 0;
-            
-            if (!$reservationLogsExists) {
-                // Create the reservation_logs table if it doesn't exist
-                $createLogsTable = "CREATE TABLE `reservation_logs` (
-                    `log_id` INT AUTO_INCREMENT PRIMARY KEY,
-                    `reservation_id` INT NOT NULL,
-                    `user_id` INT NOT NULL,
-                    `action` VARCHAR(50) NOT NULL,
-                    `action_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    `details` TEXT NULL
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
-                
-                $conn->query($createLogsTable);
-            }
-            
-            // Log the cancellation for history tracking
-            $logCancellation = $conn->prepare("INSERT INTO reservation_logs (reservation_id, user_id, action, action_time) VALUES (?, ?, 'cancelled', NOW())");
-            if ($logCancellation) {
-                $logCancellation->bind_param("ii", $reservation_id, $loggedInUserId);
-                $logCancellation->execute();
-                $logCancellation->close();
-            }
-            
-            $message = "Your reservation has been cancelled successfully.";
-            $messageType = "success";
         } else {
-            $message = "Error cancelling reservation: " . $conn->error;
             $messageType = "error";
+            $message = "Error cancelling reservation.";
         }
     } else {
-        $message = "Reservation not found or cannot be cancelled.";
         $messageType = "error";
+        $message = "Reservation not found or already processed.";
     }
 }
 
@@ -227,7 +245,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
 
 // Get all labs for dropdown
 $labs = [];
-// Fix the query by removing the WHERE clause with the non-existent 'status' column
 $labsResult = $conn->query("SELECT * FROM labs ORDER BY lab_name");
 if ($labsResult && $labsResult->num_rows > 0) {
     while($row = $labsResult->fetch_assoc()) {
@@ -249,7 +266,7 @@ if (empty($labs)) {
 $pendingReservations = [];
 if (!$setupNeeded) {
     try {
-        $stmt = $conn->prepare("SELECT r.*, l.lab_name, c.computer_number, c.status as computer_status
+        $stmt = $conn->prepare("SELECT r.*, l.lab_name, c.computer_name, c.status as computer_status
                             FROM reservations r 
                             JOIN labs l ON r.lab_id = l.lab_id 
                             LEFT JOIN computers c ON r.computer_id = c.computer_id
@@ -308,7 +325,10 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
     $availableComputers = [];
     
     try {
-        $stmt = $conn->prepare("SELECT computer_id, computer_number FROM computers WHERE lab_id = ? AND status = 'available' ORDER BY computer_number");
+        // Updated query to use computer_number for ordering
+        $stmt = $conn->prepare("SELECT computer_id, computer_name FROM computers 
+                               WHERE lab_id = ? AND status = 'available' 
+                               ORDER BY computer_number ASC");
         $stmt->bind_param("i", $lab_id);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -328,7 +348,6 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -354,7 +373,7 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                             700: '#0369a1',
                             800: '#075985',
                             900: '#0c4a6e',
-                        }
+                        },
                     },
                     fontFamily: {
                         sans: ['Inter', 'sans-serif'],
@@ -380,31 +399,25 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
             z-index: 1000;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
-        
         .notification.success {
             background-color: #10b981;
         }
-        
         .notification.error {
             background-color: #ef4444;
         }
-        
         .notification.show {
             opacity: 1;
             transform: translateY(0);
         }
-        
         .notification i {
             margin-right: 10px;
             font-size: 18px;
         }
-
         .date-disabled {
             background-color: #f3f4f6;
             color: #9ca3af;
             cursor: not-allowed;
         }
-        
         .status-badge {
             display: inline-flex;
             align-items: center;
@@ -413,36 +426,29 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
             font-size: 0.75rem;
             font-weight: 500;
         }
-        
         .status-pending {
             background-color: #fef3c7;
             color: #92400e;
         }
-        
         .status-approved {
             background-color: #d1fae5;
             color: #065f46;
         }
-        
         .status-used {
             background-color: #dbeafe;
             color: #1e40af;
         }
-        
         .status-rejected {
             background-color: #fee2e2;
             color: #b91c1c;
         }
-        
         .status-cancelled {
             background-color: #f3f4f6;
             color: #4b5563;
         }
-        
         .reservation-card {
             transition: all 0.3s ease;
         }
-        
         .reservation-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -450,23 +456,25 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
     </style>
     <script>
         // Toggle mobile menu
-        document.getElementById('mobile-menu-button').addEventListener('click', function() {
-            document.getElementById('mobile-menu').classList.toggle('hidden');
-        });
-        
-        // Toggle mobile dropdown menus
-        document.querySelectorAll('.mobile-dropdown-button').forEach(button => {
-            button.addEventListener('click', function() {
-                this.nextElementSibling.classList.toggle('hidden');
+        document.addEventListener('DOMContentLoaded', function() {
+            // Mobile menu toggle
+            document.getElementById('mobile-menu-button')?.addEventListener('click', function() {
+                document.getElementById('mobile-menu').classList.toggle('hidden');
+            });
+
+            // Toggle mobile dropdown menu
+            document.querySelectorAll('.mobile-dropdown-button').forEach(button => {
+                button.addEventListener('click', function() {
+                    this.nextElementSibling.classList.toggle('hidden');
+                });
             });
         });
-        
+
         function showNotification(message, type) {
             const notification = document.createElement('div');
             notification.className = `notification ${type}`;
             notification.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
             document.body.appendChild(notification);
-            
             setTimeout(() => {
                 notification.classList.add('show');
                 setTimeout(() => {
@@ -477,84 +485,96 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                 }, 3000);
             }, 100);
         }
-        
-        // Form validation before submission - removed incorrect IIFE
-        document.getElementById('reservationForm').addEventListener('submit', function(e) {
-            const startTime = document.getElementById('start_time').value;
-            
-            if (startTime) {
-                // Check if times are within lab hours (8 AM - 6 PM)
-                const startHour = parseInt(startTime.split(':')[0]);
-                const startMinute = parseInt(startTime.split(':')[1]);
-                
-                if (startHour < 8 || startHour >= 18) {
-                    e.preventDefault();
-                    showNotification("Lab hours are from 8:00 AM to 6:00 PM.", "error");
-                }
-            }
-        });
-        
-        // Check if notification should be shown (from PHP)
-        <?php if (!empty($message)): ?>
-        showNotification("<?php echo $message; ?>", "<?php echo $messageType; ?>");
-        <?php endif; ?>
-        
-        // Load available computers when lab is selected
-        document.getElementById('lab_id').addEventListener('change', function() {
-            const labId = this.value;
-            const computerSelect = document.getElementById('computer_id');
-            const loadingMessage = document.getElementById('computer-loading');
-            const noComputersMessage = document.getElementById('no-computers-message');
-            
-            // Reset computer dropdown
-            computerSelect.innerHTML = '<option value="">Loading computers...</option>';
-            computerSelect.disabled = true;
-            
-            // Show loading indicator
-            loadingMessage.classList.remove('hidden');
-            noComputersMessage.classList.add('hidden');
-            
-            if (labId) {
-                // Fetch available computers for selected lab
-                fetch(`reservation.php?get_computers=1&lab_id=${labId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        loadingMessage.classList.add('hidden');
-                        computerSelect.disabled = false;
-                        computerSelect.innerHTML = '';
-                        
-                        // Add default option
-                        const defaultOption = document.createElement('option');
-                        defaultOption.value = '';
-                        defaultOption.textContent = 'Select a computer';
-                        computerSelect.appendChild(defaultOption);
-                        
-                        if (data.length > 0) {
-                            // Add options for each available computer
-                            data.forEach(computer => {
-                                const option = document.createElement('option');
-                                option.value = computer.computer_id;
-                                option.textContent = `Computer #${computer.computer_number}`;
-                                computerSelect.appendChild(option);
-                            });
-                        } else {
-                            // Show message if no computers available
-                            noComputersMessage.classList.remove('hidden');
-                            defaultOption.textContent = 'No computers available';
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Form validation before submission
+            const reservationForm = document.getElementById('reservationForm');
+            if (reservationForm) {
+                reservationForm.addEventListener('submit', function(e) {
+                    const startTime = document.getElementById('start_time').value;
+                    if (startTime) {
+                        // Check if times are within lab hours (8 AM - 6 PM)
+                        const startHour = parseInt(startTime.split(':')[0]);
+                        const startMinute = parseInt(startTime.split(':')[1]);
+                        if (startHour < 8 || startHour >= 18) {
+                            e.preventDefault();
+                            showNotification("Lab hours are from 8:00 AM to 6:00 PM.", "error");
                         }
-                    })
-                    .catch(error => {
-                        console.error('Error fetching computers:', error);
+                    }
+                });
+            }
+
+            // Check if notification should be shown (from PHP)
+            <?php if (!empty($message)): ?>
+            showNotification("<?php echo addslashes($message); ?>", "<?php echo $messageType; ?>");
+            <?php endif; ?>
+
+            // Load available computers when lab is selected
+            const labSelector = document.getElementById('lab_id');
+            if (labSelector) {
+                labSelector.addEventListener('change', function() {
+                    const labId = this.value;
+                    const computerSelect = document.getElementById('computer_id');
+                    const loadingMessage = document.getElementById('computer-loading');
+                    const noComputersMessage = document.getElementById('no-computers-message');
+                    
+                    // Reset computer dropdown
+                    computerSelect.innerHTML = '<option value="">Loading computers...</option>';
+                    computerSelect.disabled = true;
+                    
+                    // Show loading indicator
+                    loadingMessage.classList.remove('hidden');
+                    noComputersMessage.classList.add('hidden');
+                    
+                    if (labId) {
+                        // Fetch available computers for selected lab using fetch API
+                        fetch(`reservation.php?get_computers=1&lab_id=${labId}`)
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error('Network response was not ok');
+                                }
+                                return response.json();
+                            })
+                            .then(data => {
+                                loadingMessage.classList.add('hidden');
+                                computerSelect.disabled = false;
+                                computerSelect.innerHTML = '';
+                                
+                                // Add default option
+                                const defaultOption = document.createElement('option');
+                                defaultOption.value = '';
+                                defaultOption.textContent = 'Select a computer';
+                                computerSelect.appendChild(defaultOption);
+                                
+                                if (data && data.length > 0) {
+                                    // Add options for each available computer
+                                    data.forEach(computer => {
+                                        const option = document.createElement('option');
+                                        option.value = computer.computer_id;
+                                        option.textContent = computer.computer_name;
+                                        computerSelect.appendChild(option);
+                                    });
+                                    console.log(`Loaded ${data.length} computers`);
+                                } else {
+                                    // Show message if no computers available
+                                    noComputersMessage.classList.remove('hidden');
+                                    defaultOption.textContent = 'No computers available';
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error fetching computers:', error);
+                                loadingMessage.classList.add('hidden');
+                                computerSelect.disabled = false;
+                                computerSelect.innerHTML = '<option value="">Error loading computers</option>';
+                                noComputersMessage.classList.remove('hidden');
+                            });
+                    } else {
+                        // Reset if no lab selected
                         loadingMessage.classList.add('hidden');
                         computerSelect.disabled = false;
-                        computerSelect.innerHTML = '<option value="">Error loading computers</option>';
-                        noComputersMessage.classList.remove('hidden');
-                    });
-            } else {
-                // Reset if no lab selected
-                loadingMessage.classList.add('hidden');
-                computerSelect.disabled = false;
-                computerSelect.innerHTML = '<option value="">Please select a lab first</option>';
+                        computerSelect.innerHTML = '<option value="">Please select a lab first</option>';
+                    }
+                });
             }
         });
     </script>
@@ -567,7 +587,6 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                 <div class="flex items-center space-x-4">
                     <a href="dashboard.php" class="text-xl font-bold">SitIn Dashboard</a>
                 </div>
-                
                 <div class="flex items-center space-x-3">
                     <div class="hidden md:flex items-center space-x-2 mr-4">
                         <a href="dashboard.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Home</a>
@@ -585,7 +604,6 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                         <a href="history.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">History</a>
                         <a href="reservation.php" class="px-3 py-2 rounded bg-primary-800 transition">Reservation</a>
                     </div>
-                    
                     <button id="mobile-menu-button" class="md:hidden text-white focus:outline-none">
                         <i class="fas fa-bars text-xl"></i>
                     </button>
@@ -596,7 +614,7 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
             </nav>
         </div>
     </header>
-    
+
     <!-- Mobile Navigation Menu (hidden by default) -->
     <div id="mobile-menu" class="md:hidden bg-primary-800 hidden">
         <a href="dashboard.php" class="block px-4 py-2 text-white hover:bg-primary-900">Home</a>
@@ -616,7 +634,6 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
     <!-- Main Content -->
     <div class="container mx-auto px-4 py-8 flex-grow">
         <h1 class="text-2xl font-bold text-gray-800 mb-6">Lab SitIn Reservation</h1>
-        
         <?php if (!empty($message)): ?>
             <div class="mb-6 p-4 rounded-lg <?php echo $messageType === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'; ?>">
                 <div class="flex">
@@ -629,10 +646,9 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                 </div>
             </div>
         <?php endif; ?>
-        
+
         <!-- Only show the main content if setup is not needed -->
         <?php if (!$setupNeeded): ?>
-        
         <!-- Remaining Sessions Info Card -->
         <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
             <div class="flex items-center">
@@ -657,7 +673,6 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
             <div class="lg:col-span-2">
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                     <h2 class="text-xl font-semibold text-gray-800 mb-4">Make a Reservation</h2>
-                    
                     <?php if (!$canReserve): ?>
                         <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
                             <div class="flex">
@@ -672,7 +687,7 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                             </div>
                         </div>
                     <?php endif; ?>
-                    
+
                     <!-- Form layout modification to make fields more compact -->
                     <form action="reservation.php" method="POST" id="reservationForm">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -694,7 +709,7 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                                 <input type="text" id="yearlevel" value="<?php echo $yearLevel; ?>" class="bg-gray-50 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 text-gray-500" readonly>
                             </div>
                         </div>
-                        
+
                         <!-- Reorganized form fields in a more compact layout -->
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <!-- Select Laboratory -->
@@ -708,7 +723,6 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                                 </select>
                                 <p class="text-xs text-gray-500 mt-1">Select a lab to see available computers</p>
                             </div>
-                            
                             <!-- Select Available Computer -->
                             <div>
                                 <label for="computer_id" class="block text-sm font-medium text-gray-700 mb-1">Select Available Computer</label>
@@ -723,7 +737,7 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                                 </p>
                             </div>
                         </div>
-                        
+
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <!-- Date (Today Only) -->
                             <div>
@@ -731,7 +745,6 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                                 <input type="text" id="reservation_date_display" value="<?php echo date('Y-m-d'); ?>" class="bg-gray-50 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary-500 text-gray-500" readonly>
                                 <p class="text-xs text-gray-500 mt-1">Reservations are only for today's date.</p>
                             </div>
-                            
                             <!-- Start Time -->
                             <div>
                                 <label for="start_time" class="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
@@ -766,7 +779,6 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
             <div>
                 <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                     <h2 class="text-xl font-semibold text-gray-800 mb-4">Your Active Reservations</h2>
-                    
                     <?php if (empty($pendingReservations)): ?>
                         <div class="text-center py-4">
                             <div class="text-gray-400 mb-2">
@@ -795,7 +807,7 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
                                         </div>
                                         <div class="flex">
                                             <i class="fas fa-desktop w-5 text-gray-500"></i>
-                                            <span>Computer #<?php echo $reservation['computer_number'] ?? 'Not assigned'; ?></span>
+                                            <span>Computer <?php echo $reservation['computer_name'] ?? 'Not assigned'; ?></span>
                                         </div>
                                         <div class="flex">
                                             <i class="fas fa-comment w-5 text-gray-500"></i>
@@ -845,116 +857,5 @@ if (isset($_GET['get_computers']) && isset($_GET['lab_id'])) {
             &copy; 2024 SitIn System. All rights reserved.
         </div>
     </footer>
-
-    <script>
-        // Toggle mobile menu
-        document.getElementById('mobile-menu-button').addEventListener('click', function() {
-            document.getElementById('mobile-menu').classList.toggle('hidden');
-        });
-        
-        // Toggle mobile dropdown menus
-        document.querySelectorAll('.mobile-dropdown-button').forEach(button => {
-            button.addEventListener('click', function() {
-                this.nextElementSibling.classList.toggle('hidden');
-            });
-        });
-        
-        function showNotification(message, type) {
-            const notification = document.createElement('div');
-            notification.className = `notification ${type}`;
-            notification.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ${message}`;
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-                notification.classList.add('show');
-                setTimeout(() => {
-                    notification.classList.remove('show');
-                    setTimeout(() => {
-                        notification.remove();
-                    }, 300);
-                }, 3000);
-            }, 100);
-        }
-        
-        // Form validation before submission - removed incorrect IIFE
-        document.getElementById('reservationForm').addEventListener('submit', function(e) {
-            const startTime = document.getElementById('start_time').value;
-            
-            if (startTime) {
-                // Check if times are within lab hours (8 AM - 6 PM)
-                const startHour = parseInt(startTime.split(':')[0]);
-                const startMinute = parseInt(startTime.split(':')[1]);
-                
-                if (startHour < 8 || startHour >= 18) {
-                    e.preventDefault();
-                    showNotification("Lab hours are from 8:00 AM to 6:00 PM.", "error");
-                }
-            }
-        });
-        
-        // Check if notification should be shown (from PHP)
-        <?php if (!empty($message)): ?>
-        showNotification("<?php echo $message; ?>", "<?php echo $messageType; ?>");
-        <?php endif; ?>
-        
-        // Load available computers when lab is selected
-        document.getElementById('lab_id').addEventListener('change', function() {
-            const labId = this.value;
-            const computerSelect = document.getElementById('computer_id');
-            const loadingMessage = document.getElementById('computer-loading');
-            const noComputersMessage = document.getElementById('no-computers-message');
-            
-            // Reset computer dropdown
-            computerSelect.innerHTML = '<option value="">Loading computers...</option>';
-            computerSelect.disabled = true;
-            
-            // Show loading indicator
-            loadingMessage.classList.remove('hidden');
-            noComputersMessage.classList.add('hidden');
-            
-            if (labId) {
-                // Fetch available computers for selected lab
-                fetch(`reservation.php?get_computers=1&lab_id=${labId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        loadingMessage.classList.add('hidden');
-                        computerSelect.disabled = false;
-                        computerSelect.innerHTML = '';
-                        
-                        // Add default option
-                        const defaultOption = document.createElement('option');
-                        defaultOption.value = '';
-                        defaultOption.textContent = 'Select a computer';
-                        computerSelect.appendChild(defaultOption);
-                        
-                        if (data.length > 0) {
-                            // Add options for each available computer
-                            data.forEach(computer => {
-                                const option = document.createElement('option');
-                                option.value = computer.computer_id;
-                                option.textContent = `Computer #${computer.computer_number}`;
-                                computerSelect.appendChild(option);
-                            });
-                        } else {
-                            // Show message if no computers available
-                            noComputersMessage.classList.remove('hidden');
-                            defaultOption.textContent = 'No computers available';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error fetching computers:', error);
-                        loadingMessage.classList.add('hidden');
-                        computerSelect.disabled = false;
-                        computerSelect.innerHTML = '<option value="">Error loading computers</option>';
-                        noComputersMessage.classList.remove('hidden');
-                    });
-            } else {
-                // Reset if no lab selected
-                loadingMessage.classList.add('hidden');
-                computerSelect.disabled = false;
-                computerSelect.innerHTML = '<option value="">Please select a lab first</option>';
-            }
-        });
-    </script>
 </body>
 </html>
