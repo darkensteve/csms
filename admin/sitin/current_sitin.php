@@ -89,6 +89,7 @@ if ($table_check->num_rows == 0) {
         `student_id` VARCHAR(50) NOT NULL,
         `student_name` VARCHAR(255) NOT NULL,
         `lab_id` INT NOT NULL,
+        `computer_id` INT,
         `purpose` VARCHAR(255) NOT NULL,
         `check_in_time` DATETIME NOT NULL,
         `check_out_time` DATETIME NULL,
@@ -158,10 +159,11 @@ try {
     
     $query = "SELECT s.session_id as id, s.student_id as user_id, s.purpose, s.check_in_time as start_time, 
               IFNULL(s.check_out_time, DATE_ADD(s.check_in_time, INTERVAL 3 HOUR)) as end_time, 
-              s.lab_id, s.student_name as user_name, s.status, l.lab_name,
+              s.lab_id, s.student_name as user_name, s.status, l.lab_name, c.computer_name,
               (SELECT COUNT(*) FROM sit_in_sessions WHERE student_id = s.student_id AND status = 'active') AS session_count
               FROM sit_in_sessions s 
               LEFT JOIN labs l ON s.lab_id = l.lab_id
+              LEFT JOIN computers c ON s.computer_id = c.computer_id
               WHERE s.status = 'active' ";
     
     // Add filter if a specific user_id is provided
@@ -695,6 +697,7 @@ if (isset($_POST['process_sitin']) && isset($_POST['student_id'])) {
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purpose</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sit Lab</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Computer</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining Session</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in Time</th>
                                     <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -708,6 +711,7 @@ if (isset($_POST['process_sitin']) && isset($_POST['student_id'])) {
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($sit_in['user_name'] ?? 'Unknown'); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($sit_in['purpose'] ?? 'N/A'); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($sit_in['lab_name'] ?? 'N/A'); ?></td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><?php echo htmlspecialchars($sit_in['computer_name'] ?? 'N/A'); ?></td>
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                             <?php 
                                                 // Simple approach to get remaining sessions with error handling

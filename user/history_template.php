@@ -27,9 +27,9 @@
                                             <span class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded-full mr-2">
                                                 <?php echo htmlspecialchars($sitIn['lab_name']); ?>
                                             </span>
-                                            <?php if ($sitIn['computer_number']): ?>
+                                            <?php if ($sitIn['computer_name']): ?>
                                                 <span class="bg-green-100 text-green-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">
-                                                    PC #<?php echo htmlspecialchars($sitIn['computer_number']); ?>
+                                                    PC #<?php echo htmlspecialchars($sitIn['computer_name']); ?>
                                                 </span>
                                             <?php endif; ?>
                                         </div>

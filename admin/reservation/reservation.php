@@ -151,6 +151,7 @@ if ($table_check->num_rows == 0) {
     $create_computers_table = "CREATE TABLE `computers` (
         `computer_id` int(11) NOT NULL AUTO_INCREMENT,
         `lab_id` int(11) NOT NULL,
+        `computer_name` varchar(255) NOT NULL,
         `computer_number` int(11) NOT NULL,
         `status` enum('available','reserved','used','maintenance') NOT NULL DEFAULT 'available',
         `last_updated` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
@@ -160,17 +161,18 @@ if ($table_check->num_rows == 0) {
     
     $conn->query($create_computers_table);
     
-    // Seed some initial data if labs exist
+    // Seed initial computers based on lab capacity
     if (count($labs) > 0) {
         foreach ($labs as $lab) {
             $lab_id = $lab['lab_id'];
             $capacity = $lab['capacity'] ?? 30;
             
             for ($i = 1; $i <= $capacity; $i++) {
-                $insert_query = "INSERT INTO computers (lab_id, computer_number, status) VALUES (?, ?, 'available')";
+                $computer_name = "PC-" . sprintf("%02d", $i);
+                $insert_query = "INSERT INTO computers (lab_id, computer_name, computer_number, status) VALUES (?, ?, ?, 'available')";
                 $stmt = $conn->prepare($insert_query);
                 if ($stmt) {
-                    $stmt->bind_param("ii", $lab_id, $i);
+                    $stmt->bind_param("isi", $lab_id, $computer_name, $i);
                     $stmt->execute();
                     $stmt->close();
                 }
@@ -178,6 +180,48 @@ if ($table_check->num_rows == 0) {
         }
     }
 } else {
+    // Check if all labs have the correct number of computers based on capacity
+    foreach ($labs as $lab) {
+        $lab_id = $lab['lab_id'];
+        $capacity = $lab['capacity'] ?? 30;
+        
+        // Count existing computers for this lab
+        $count_query = "SELECT COUNT(*) as computer_count FROM computers WHERE lab_id = ?";
+        $stmt = $conn->prepare($count_query);
+        if ($stmt) {
+            $stmt->bind_param("i", $lab_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $computer_count = $result->fetch_assoc()['computer_count'];
+            $stmt->close();
+            
+            // Add missing computers if needed
+            if ($computer_count < $capacity) {
+                for ($i = $computer_count + 1; $i <= $capacity; $i++) {
+                    $computer_name = "PC-" . sprintf("%02d", $i);
+                    $insert_query = "INSERT INTO computers (lab_id, computer_name, computer_number, status) VALUES (?, ?, ?, 'available')";
+                    $stmt = $conn->prepare($insert_query);
+                    if ($stmt) {
+                        $stmt->bind_param("isi", $lab_id, $computer_name, $i);
+                        $stmt->execute();
+                        $stmt->close();
+                    }
+                }
+            } 
+            // Remove excess computers if needed
+            else if ($computer_count > $capacity) {
+                $delete_query = "DELETE FROM computers WHERE lab_id = ? AND CAST(SUBSTRING(computer_name, 4) AS UNSIGNED) > ? ORDER BY computer_id DESC LIMIT ?";
+                $stmt = $conn->prepare($delete_query);
+                if ($stmt) {
+                    $excess = $computer_count - $capacity;
+                    $stmt->bind_param("iii", $lab_id, $capacity, $excess);
+                    $stmt->execute();
+                    $stmt->close();
+                }
+            }
+        }
+    }
+    
     // Check if 'used' status exists in the enum, if not alter the table
     $check_enum = $conn->query("SHOW COLUMNS FROM computers LIKE 'status'");
     if ($check_enum && $check_enum->num_rows > 0) {
@@ -234,7 +278,7 @@ $filter_date = isset($_GET['filter_date']) ? $_GET['filter_date'] : date('Y-m-d'
 // Selected lab for computer control
 $selected_lab_id = isset($_GET['lab_id']) ? (int)$_GET['lab_id'] : (isset($labs[array_key_first($labs)]) ? array_key_first($labs) : 0);
 
-// Fetch computers for the selected lab
+// Fetch computers for the selected lab - updated to order by computer_number
 $computers = [];
 if ($selected_lab_id > 0) {
     $computers_query = "SELECT * FROM computers WHERE lab_id = ? ORDER BY computer_number";
@@ -252,10 +296,10 @@ if ($selected_lab_id > 0) {
     }
 }
 
-// Fetch pending reservation requests with computer info - Updated to include computer number
+// Fetch pending reservation requests with computer info - Updated to include computer name
 $pending_reservations = [];
 $pending_query = "SELECT r.*, l.lab_name, u.idNo as student_id, CONCAT(u.firstName, ' ', u.lastName) as student_name, 
-                 c.computer_number, c.status as computer_status
+                 c.computer_name, c.status as computer_status
                  FROM reservations r 
                  JOIN labs l ON r.lab_id = l.lab_id
                  JOIN users u ON r.user_id = u.user_id 
@@ -272,7 +316,7 @@ if ($pending_result && $pending_result->num_rows > 0) {
 // Fetch reservation logs with filtering - Add JOIN with users table
 $logs = [];
 $logs_query = "SELECT r.*, l.lab_name, u.IDNO as student_id, CONCAT(u.FIRSTNAME, ' ', u.MIDDLENAME, ' ', u.LASTNAME) as student_name,
-               c.computer_number 
+               c.computer_name 
                FROM reservations r 
                JOIN labs l ON r.lab_id = l.lab_id
                JOIN users u ON r.user_id = u.USER_ID
@@ -303,7 +347,7 @@ if ($logs_result && $logs_result->num_rows > 0) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" width="device-width, initial-scale=1.0">
     <title>Reservation Management | Admin Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -775,7 +819,7 @@ if ($logs_result && $logs_result->num_rows > 0) {
                                          <?php echo $computer['computer_id']; ?>, 
                                          '<?php echo $computer['status']; ?>', 
                                          <?php echo $selected_lab_id; ?>,
-                                         <?php echo $computer['computer_number']; ?>
+                                         '<?php echo $computer['computer_name']; ?>'
                                      )">
                                     <div class="text-xl">
                                         <?php if ($computer['status'] == 'available'): ?>
@@ -790,7 +834,7 @@ if ($logs_result && $logs_result->num_rows > 0) {
                                             <i class="fas fa-tools text-amber-600"></i>
                                         <?php endif; ?>
                                     </div>
-                                    <div class="font-medium text-sm mt-1">PC #<?php echo $computer['computer_number']; ?></div>
+                                    <div class="font-medium text-sm mt-1"><?php echo htmlspecialchars($computer['computer_name']); ?></div>
                                     <div class="text-xs mt-0.5 capitalize text-gray-600"><?php echo $computer['status']; ?></div>
                                 </div>
                             <?php endforeach; ?>
@@ -870,7 +914,7 @@ if ($logs_result && $logs_result->num_rows > 0) {
                                                     <!-- Display requested computer -->
                                                     <?php if ($reservation['computer_id']): ?>
                                                     <span class="text-xs bg-blue-50 text-blue-700 py-1 px-2 rounded inline-block w-fit mb-1">
-                                                        <i class="fas fa-desktop mr-1"></i> Computer #<?php echo $reservation['computer_number']; ?>
+                                                        <i class="fas fa-desktop mr-1"></i> <?php echo htmlspecialchars($reservation['computer_name']); ?>
                                                     </span>
                                                     
                                                     <?php
@@ -918,7 +962,7 @@ if ($logs_result && $logs_result->num_rows > 0) {
                                                         </button>
                                                     </form>
                                                     <button class="action-btn action-btn-info" title="View Details" 
-                                                        onclick="alert('Purpose: <?php echo addslashes($reservation['purpose']); ?>\nLab: <?php echo addslashes($reservation['lab_name']); ?>\nComputer: #<?php echo $reservation['computer_number'] ?: 'Not specified'; ?>')">
+                                                        onclick="alert('Purpose: <?php echo addslashes($reservation['purpose']); ?>\nLab: <?php echo addslashes($reservation['lab_name']); ?>\nComputer: <?php echo $reservation['computer_name'] ?: 'Not specified'; ?>')">
                                                         <i class="fas fa-info"></i>
                                                     </button>
                                                 </div>
@@ -1155,7 +1199,7 @@ if ($logs_result && $logs_result->num_rows > 0) {
         });
         
         // Toggle computer status
-        function toggleComputerStatus(computerId, currentStatus, labId, computerNumber) {
+        function toggleComputerStatus(computerId, currentStatus, labId, computerName) {
             let newStatus;
             
             // Cycle through the three states: available → reserved → maintenance → available
@@ -1167,7 +1211,7 @@ if ($logs_result && $logs_result->num_rows > 0) {
                 newStatus = 'available';
             }
             
-            if (confirm(`Do you want to change PC #${computerNumber} to ${newStatus}?`)) {
+            if (confirm(`Do you want to change ${computerName} to ${newStatus}?`)) {
                 const form = document.createElement('form');
                 form.method = 'POST';
                 form.action = 'reservation.php';

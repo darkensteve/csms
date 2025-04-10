@@ -58,12 +58,12 @@ $userName = $user['firstName'] . ' ' . $user['lastName'];
 // Get user's reservation history, ordered by most recent first
 $reservations = [];
 try {
-    $stmt = $conn->prepare("SELECT r.*, l.lab_name, c.computer_number
+    $stmt = $conn->prepare("SELECT r.*, l.lab_name, c.computer_name, c.status as computer_status
                         FROM reservations r 
                         JOIN labs l ON r.lab_id = l.lab_id 
                         LEFT JOIN computers c ON r.computer_id = c.computer_id
                         WHERE r.user_id = ? 
-                        ORDER BY r.created_at DESC");
+                        ORDER BY r.reservation_date DESC, r.time_slot DESC");
     $stmt->bind_param("i", $loggedInUserId);
     $stmt->execute();
     $historyResult = $stmt->get_result();
@@ -91,7 +91,7 @@ foreach ($reservations as $reservation) {
 // Get user's sit-in history
 $sitInHistory = [];
 try {
-    $sitInQuery = $conn->prepare("SELECT s.*, l.lab_name, c.computer_number, 
+    $sitInQuery = $conn->prepare("SELECT s.*, l.lab_name, c.computer_name, 
                             (SELECT COUNT(*) FROM sit_in_feedback WHERE session_id = s.session_id AND user_id = ?) as has_feedback
                             FROM sit_in_sessions s 
                             JOIN labs l ON s.lab_id = l.lab_id 
@@ -397,8 +397,8 @@ if (isset($_SESSION['feedback_message']) && isset($_SESSION['feedback_status']))
                                     </td>
                                     <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">
                                         <?php echo htmlspecialchars($session['lab_name']); ?>
-                                        <?php if (!empty($session['computer_number'])): ?>
-                                            <span class="text-gray-500 text-xs ml-1">(PC #<?php echo htmlspecialchars($session['computer_number']); ?>)</span>
+                                        <?php if (!empty($session['computer_name'])): ?>
+                                            <span class="text-gray-500 text-xs ml-1">(PC #<?php echo htmlspecialchars($session['computer_name']); ?>)</span>
                                         <?php endif; ?>
                                     </td>
                                     <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">
@@ -475,7 +475,7 @@ if (isset($_SESSION['feedback_message']) && isset($_SESSION['feedback_status']))
                                     <td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900"><?php echo date('M d, Y', strtotime($reservation['reservation_date'])); ?></td>
                                     <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700"><?php echo $reservation['time_slot']; ?></td>
                                     <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700"><?php echo htmlspecialchars($reservation['lab_name']); ?></td>
-                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700"><?php echo $reservation['computer_number'] ? "PC #" . htmlspecialchars($reservation['computer_number']) : "Not assigned"; ?></td>
+                                    <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700"><?php echo $reservation['computer_name'] ? "PC #" . htmlspecialchars($reservation['computer_name']) : "Not assigned"; ?></td>
                                     <td class="px-4 py-4 text-sm text-gray-700"><?php echo htmlspecialchars($reservation['purpose']); ?></td>
                                     <td class="px-4 py-4 whitespace-nowrap">
                                         <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full <?php echo getStatusBadgeClass($reservation['status']); ?>">
