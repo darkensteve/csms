@@ -17,6 +17,7 @@ function formatDateTime($dateTime, $format = 'M d, Y g:i A') {
     return date($format, strtotime($dateTime));
 }
 
+
 // Initialize variables
 $admin_username = $_SESSION['admin_username'] ?? 'Admin';
 $filter_rating = isset($_GET['rating']) ? (int)$_GET['rating'] : 0;
