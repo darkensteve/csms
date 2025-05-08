@@ -51,86 +51,88 @@ if (isset($_POST['update_reservation'])) {
     $action = $_POST['action'];
     $new_status = ($action == 'approve') ? 'approved' : 'rejected';
     
-    // Get the computer_id associated with this reservation
-    $get_computer_query = "SELECT computer_id, lab_id, user_id FROM reservations WHERE reservation_id = ?";
-    $stmt_get = $conn->prepare($get_computer_query);
-    $computer_id = null;
-    $lab_id = null;
-    $user_id = null;
+    // Get the reservation details
+    $get_reservation_query = "SELECT r.*, u.firstName, u.lastName, u.idNo FROM reservations r 
+                             JOIN users u ON r.user_id = u.user_id 
+                             WHERE r.reservation_id = ?";
+    $stmt_get = $conn->prepare($get_reservation_query);
     
     if ($stmt_get) {
         $stmt_get->bind_param("i", $reservation_id);
         $stmt_get->execute();
         $result = $stmt_get->get_result();
-        if ($row = $result->fetch_assoc()) {
-            $computer_id = $row['computer_id'];
-            $lab_id = $row['lab_id'];
-            $user_id = $row['user_id'];
-        }
+        $reservation = $result->fetch_assoc();
         $stmt_get->close();
-    }
-    
-    // Update the reservation status
-    $update_query = "UPDATE reservations SET status = ? WHERE reservation_id = ?";
-    $stmt = $conn->prepare($update_query);
-    if ($stmt) {
-        $stmt->bind_param("si", $new_status, $reservation_id);
-        if ($stmt->execute()) {
-            // If approved, update the computer status to 'reserved'
-            if ($action == 'approve' && $computer_id) {
-                $computer_status = 'reserved';
-                $update_computer_query = "UPDATE computers SET status = ? WHERE computer_id = ?";
-                $stmt_computer = $conn->prepare($update_computer_query);
-                if ($stmt_computer) {
-                    $stmt_computer->bind_param("si", $computer_status, $computer_id);
-                    $stmt_computer->execute();
-                    $stmt_computer->close();
-                }
-                
-                // Also get the student's details for the message
-                $get_student_query = "SELECT idNo, firstName, lastName FROM users WHERE user_id = ?";
-                $stmt_student = $conn->prepare($get_student_query);
-                $student_name = '';
-                $student_id = '';
-                
-                if ($stmt_student) {
-                    $stmt_student->bind_param("i", $user_id);
-                    $stmt_student->execute();
-                    $student_result = $stmt_student->get_result();
-                    if ($student_row = $student_result->fetch_assoc()) {
-                        $student_name = $student_row['firstName'] . ' ' . $student_row['lastName'];
-                        $student_id = $student_row['idNo'];
+        
+        // Update the reservation status
+        $update_query = "UPDATE reservations SET status = ? WHERE reservation_id = ?";
+        $stmt = $conn->prepare($update_query);
+        if ($stmt) {
+            $stmt->bind_param("si", $new_status, $reservation_id);
+            if ($stmt->execute()) {
+                // If approved, create sit-in session and update computer status
+                if ($action == 'approve' && $reservation) {
+                    // Update computer status to 'used'
+                    $computer_status = 'used';
+                    $update_computer_query = "UPDATE computers SET status = ? WHERE computer_id = ?";
+                    $stmt_computer = $conn->prepare($update_computer_query);
+                    if ($stmt_computer) {
+                        $stmt_computer->bind_param("si", $computer_status, $reservation['computer_id']);
+                        $stmt_computer->execute();
+                        $stmt_computer->close();
                     }
-                    $stmt_student->close();
+                    
+                    // Create sit-in session
+                    $sitin_query = "INSERT INTO sit_in_sessions (
+                        student_id, student_name, lab_id, computer_id, purpose, 
+                        check_in_time, status, admin_id
+                    ) VALUES (?, ?, ?, ?, ?, NOW(), 'active', ?)";
+                    
+                    $stmt_sitin = $conn->prepare($sitin_query);
+                    if ($stmt_sitin) {
+                        $student_name = $reservation['firstName'] . ' ' . $reservation['lastName'];
+                        $stmt_sitin->bind_param(
+                            "ssiisi",
+                            $reservation['idNo'],
+                            $student_name,
+                            $reservation['lab_id'],
+                            $reservation['computer_id'],
+                            $reservation['purpose'],
+                            $_SESSION['admin_id']
+                        );
+                        
+                        if ($stmt_sitin->execute()) {
+                            $messages[] = [
+                                'type' => 'success',
+                                'text' => "Reservation approved and sit-in session created for student {$student_name}"
+                            ];
+                        }
+                        $stmt_sitin->close();
+                    }
+                } else if ($action == 'reject' && $reservation['computer_id']) {
+                    // If rejected, set the computer back to 'available'
+                    $computer_status = 'available';
+                    $update_computer_query = "UPDATE computers SET status = ? WHERE computer_id = ?";
+                    $stmt_computer = $conn->prepare($update_computer_query);
+                    if ($stmt_computer) {
+                        $stmt_computer->bind_param("si", $computer_status, $reservation['computer_id']);
+                        $stmt_computer->execute();
+                        $stmt_computer->close();
+                    }
+                    
+                    $messages[] = [
+                        'type' => 'success',
+                        'text' => "Reservation #$reservation_id has been rejected. Computer #{$reservation['computer_id']} has been set back to available."
+                    ];
                 }
-                
+            } else {
                 $messages[] = [
-                    'type' => 'success',
-                    'text' => "Reservation #$reservation_id has been approved. Computer #{$computer_id} is now reserved for student {$student_name} (ID: {$student_id})."
-                ];
-            } else if ($action == 'reject' && $computer_id) {
-                // If rejected, set the computer back to 'available'
-                $computer_status = 'available';
-                $update_computer_query = "UPDATE computers SET status = ? WHERE computer_id = ?";
-                $stmt_computer = $conn->prepare($update_computer_query);
-                if ($stmt_computer) {
-                    $stmt_computer->bind_param("si", $computer_status, $computer_id);
-                    $stmt_computer->execute();
-                    $stmt_computer->close();
-                }
-                
-                $messages[] = [
-                    'type' => 'success',
-                    'text' => "Reservation #$reservation_id has been rejected. Computer #{$computer_id} has been set back to available."
+                    'type' => 'error',
+                    'text' => "Failed to update reservation: " . $stmt->error
                 ];
             }
-        } else {
-            $messages[] = [
-                'type' => 'error',
-                'text' => "Failed to update reservation: " . $stmt->error
-            ];
+            $stmt->close();
         }
-        $stmt->close();
     }
 }
 
@@ -228,17 +230,13 @@ if ($table_check->num_rows == 0) {
         $enum_info = $check_enum->fetch_assoc();
         $need_update = false;
         
-        if (strpos($enum_info['Type'], 'pending') === false) {
-            $need_update = true;
-        }
-        
         if (strpos($enum_info['Type'], 'used') === false) {
             $need_update = true;
         }
         
         if ($need_update) {
-            // Add 'pending' and 'used' to the enum
-            $conn->query("ALTER TABLE computers MODIFY status ENUM('available','pending','reserved','used','maintenance') NOT NULL DEFAULT 'available'");
+            // Modify status enum without 'pending'
+            $conn->query("ALTER TABLE computers MODIFY status ENUM('available','reserved','used','maintenance') NOT NULL DEFAULT 'available'");
         }
     }
 }
@@ -421,11 +419,6 @@ if ($logs_result && $logs_result->num_rows > 0) {
         .computer-maintenance {
             background-color: #fef3c7;
             border: 1px solid #f59e0b;
-        }
-        
-        .computer-pending {
-            background-color: #fef9c3;
-            border: 1px solid #facc15;
         }
         
         .notification {
@@ -828,8 +821,6 @@ if ($logs_result && $logs_result->num_rows > 0) {
                                             <i class="fas fa-desktop text-red-600"></i>
                                         <?php elseif ($computer['status'] == 'used'): ?>
                                             <i class="fas fa-desktop text-blue-600"></i>
-                                        <?php elseif ($computer['status'] == 'pending'): ?>
-                                            <i class="fas fa-desktop text-yellow-600"></i>
                                         <?php else: ?>
                                             <i class="fas fa-tools text-amber-600"></i>
                                         <?php endif; ?>
@@ -866,10 +857,6 @@ if ($logs_result && $logs_result->num_rows > 0) {
                         <div class="flex items-center">
                             <div class="w-3 h-3 bg-amber-200 border border-amber-600 rounded-full mr-1"></div>
                             <span class="text-xs">Maintenance</span>
-                        </div>
-                        <div class="flex items-center">
-                            <div class="w-3 h-3 bg-yellow-200 border border-yellow-600 rounded-full mr-1"></div>
-                            <span class="text-xs">Pending</span>
                         </div>
                     </div>
                 </div>
@@ -1202,7 +1189,7 @@ if ($logs_result && $logs_result->num_rows > 0) {
         function toggleComputerStatus(computerId, currentStatus, labId, computerName) {
             let newStatus;
             
-            // Cycle through the three states: available → reserved → maintenance → available
+            // Cycle through states: available → reserved → maintenance → available
             if (currentStatus === 'available') {
                 newStatus = 'reserved';
             } else if (currentStatus === 'reserved') {

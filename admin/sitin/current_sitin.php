@@ -160,11 +160,13 @@ try {
     $query = "SELECT s.session_id as id, s.student_id as user_id, s.purpose, s.check_in_time as start_time, 
               IFNULL(s.check_out_time, DATE_ADD(s.check_in_time, INTERVAL 3 HOUR)) as end_time, 
               s.lab_id, s.student_name as user_name, s.status, l.lab_name, c.computer_name,
-              (SELECT COUNT(*) FROM sit_in_sessions WHERE student_id = s.student_id AND status = 'active') AS session_count
+              (SELECT COUNT(*) FROM sit_in_sessions WHERE student_id = s.student_id AND status = 'active') AS session_count,
+              r.reservation_id
               FROM sit_in_sessions s 
               LEFT JOIN labs l ON s.lab_id = l.lab_id
               LEFT JOIN computers c ON s.computer_id = c.computer_id
-              WHERE s.status = 'active' ";
+              LEFT JOIN reservations r ON s.student_id = r.user_id AND r.status = 'approved' AND DATE(r.reservation_date) = CURDATE()
+              WHERE s.status = 'active'";
     
     // Add filter if a specific user_id is provided
     if ($highlight_user_id) {

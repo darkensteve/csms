@@ -223,6 +223,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
             $message = $computerErrorMessage;
             $messageType = "error";
         } else {
+            // Update computer status to reserved immediately when reservation request is made
+            $update_computer_query = "UPDATE computers SET status = 'reserved' WHERE computer_id = ?";
+            $stmt = $conn->prepare($update_computer_query);
+            if ($stmt) {
+                $stmt->bind_param("i", $computerId);
+                $stmt->execute();
+                $stmt->close();
+            }
+            
             // Insert reservation
             $stmt = $conn->prepare("INSERT INTO reservations (user_id, lab_id, computer_id, reservation_date, time_slot, purpose, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->bind_param("iiisssss", $loggedInUserId, $labId, $computerId, $date, $timeSlot, $purpose, $status, $createdAt);
