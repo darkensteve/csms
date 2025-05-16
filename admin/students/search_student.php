@@ -460,34 +460,20 @@ if (empty($labs)) {
                         <a href="student.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-users mr-1"></i> Students
                         </a>
-                        
-                        <!-- Sit-In dropdown menu -->
-                        <div class="relative inline-block dropdown-container" id="sitInDropdown">
-                            <button class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center" id="sitInMenuButton">
-                                <i class="fas fa-user-check mr-1"></i> Sit-In
-                                <i class="fas fa-chevron-down ml-1 text-xs"></i>
-                            </button>
-                            <div class="dropdown-menu" id="sitInDropdownMenu">
-                                <a href="../sitin/current_sitin.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <i class="fas fa-user-check mr-1"></i> Current Sit-In
-                                </a>
-                                <a href="../sitin/sitin_records.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <i class="fas fa-list mr-1"></i> Sit-In Records
-                                </a>
-                                <a href="../sitin/sitin_reports.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <i class="fas fa-chart-bar mr-1"></i> Sit-In Reports
-                                </a>
-                            </div>
-                        </div>
-                        
+                        <a href="../sitin/current_sitin.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-user-check mr-1"></i> Sit-In
+                        </a>
+                        <a href="../lab_resources/index.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-book mr-1"></i> Lab Resources
+                        </a>
                         <a href="../sitin/feedback_reports.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-comment mr-1"></i> Feedback
                         </a>
                         <a href="../reservation/reservation.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-calendar-check mr-1"></i> Reservation
                         </a>
-                        <a href="../leaderboard/leaderboard.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
-                            <i class="fas fa-trophy mr-1"></i> Leaderboard
+                        <a href="../lab_schedule/index.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-laptop mr-1"></i> Lab Schedule
                         </a>
                     </div>
                     
@@ -497,7 +483,7 @@ if (empty($labs)) {
                     <div class="relative">
                         <button class="flex items-center space-x-2 focus:outline-none" id="userDropdown" onclick="toggleUserDropdown()">
                             <div class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
-                                <img src="../newp.jpg" alt="Admin" class="w-full h-full object-cover">
+                                <img src="../../newp.jpg" alt="Admin" class="w-full h-full object-cover">
                             </div>
                             <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username ?? 'Admin'); ?></span>
                             <i class="fas fa-chevron-down text-xs"></i>
@@ -533,31 +519,20 @@ if (empty($labs)) {
         <a href="student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-users mr-2"></i> Students
         </a>
-        
-        <!-- Mobile Sit-In dropdown with toggle -->
-        <div class="relative">
-            <button id="mobile-sitin-dropdown" class="w-full text-left block px-4 py-2 text-white hover:bg-primary-900 flex justify-between items-center">
-                <span><i class="fas fa-user-check mr-2"></i> Sit-In</span>
-                <i class="fas fa-chevron-down text-xs"></i>
-            </button>
-            <div id="mobile-sitin-menu" class="hidden bg-primary-950 py-2">
-                <a href="../sitin/current_sitin.php" class="block px-6 py-2 text-white hover:bg-primary-900">
-                    <i class="fas fa-user-check mr-2"></i> Current Sit-In
-                </a>
-                <a href="../sitin/sitin_records.php" class="block px-6 py-2 text-white hover:bg-primary-900">
-                    <i class="fas fa-list mr-2"></i> Sit-In Records
-                </a>
-                <a href="../sitin/sitin_reports.php" class="block px-6 py-2 text-white hover:bg-primary-900">
-                    <i class="fas fa-chart-bar mr-2"></i> Sit-In Reports
-                </a>
-            </div>
-        </div>
-        
+        <a href="../sitin/current_sitin.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-user-check mr-2"></i> Sit-In
+        </a>
+        <a href="../lab_resources/index.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-book mr-2"></i> Lab Resources
+        </a>
         <a href="../sitin/feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-comment mr-2"></i> Feedback
         </a>
         <a href="../reservation/reservation.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-calendar-check mr-2"></i> Reservation
+        </a>
+        <a href="../lab_schedule/index.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-laptop mr-2"></i> Lab Schedule
         </a>
     </div>
 
@@ -831,21 +806,29 @@ if (empty($labs)) {
 
     <script>
         // Toggle mobile menu
-        document.getElementById('mobile-menu-button').addEventListener('click', function() {
-            document.getElementById('mobile-menu').classList.toggle('hidden');
-        });
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        const mobileMenu = document.getElementById('mobile-menu');
         
-        // Toggle mobile dropdown menus
-        document.querySelectorAll('.mobile-dropdown-button').forEach(button => {
-            button.addEventListener('click', function() {
-                this.nextElementSibling.classList.toggle('hidden');
+        if (mobileMenuButton && mobileMenu) {
+            mobileMenuButton.addEventListener('click', function() {
+                mobileMenu.classList.toggle('hidden');
             });
-        });
-        
-        // User dropdown toggle
-        function toggleUserDropdown() {
-            document.getElementById('userMenu').classList.toggle('hidden');
         }
+        
+        // Toggle user dropdown
+        function toggleUserDropdown() {
+            const userMenu = document.getElementById('userMenu');
+            if (userMenu) {
+                userMenu.classList.toggle('hidden');
+            }
+        }
+        
+        // Close dropdowns when clicking outside
+        window.addEventListener('click', function(e) {
+            if (!document.getElementById('userDropdown')?.contains(e.target)) {
+                document.getElementById('userMenu')?.classList.add('hidden');
+            }
+        });
         
         // Desktop Sit-In dropdown toggle implementation
         const sitInDropdown = document.getElementById('sitInDropdown');
@@ -912,17 +895,6 @@ if (empty($labs)) {
                 mobileSitInMenu.classList.toggle('hidden');
             });
         }
-        
-        // Close dropdowns when clicking outside
-        window.addEventListener('click', function(e) {
-            if (!document.getElementById('userDropdown')?.contains(e.target)) {
-                document.getElementById('userMenu')?.classList.add('hidden');
-            }
-            
-            if (sitInDropdownMenu && !sitInDropdown?.contains(e.target)) {
-                sitInDropdownMenu.classList.remove('show');
-            }
-        });
         
         // Sit-In Modal Functionality
         document.addEventListener('DOMContentLoaded', function() {

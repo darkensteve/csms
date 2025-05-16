@@ -207,7 +207,10 @@ if ($result && $result->num_rows > 0) {
                             </div>
                         </div>
                         <a href="edit.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Edit Profile</a>
+                        <a href="leaderboard.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Leaderboard</a>
                         <a href="history.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">History</a>
+                        <a href="lab_schedules.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Lab Schedules</a>
+                        <a href="lab_resources.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Lab Resources</a>
                         <a href="reservation.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Reservation</a>
                     </div>
                     
@@ -234,7 +237,10 @@ if ($result && $result->num_rows > 0) {
             <a href="#" class="block py-1 text-white hover:text-gray-300">Action 3</a>
         </div>
         <a href="edit.php" class="block px-4 py-2 text-white hover:bg-primary-900">Edit Profile</a>
+        <a href="leaderboard.php" class="block px-4 py-2 text-white hover:bg-primary-900">Leaderboard</a>
         <a href="history.php" class="block px-4 py-2 text-white hover:bg-primary-900">History</a>
+        <a href="lab_schedules.php" class="block px-4 py-2 text-white hover:bg-primary-900">Lab Schedules</a>
+        <a href="lab_resources.php" class="block px-4 py-2 text-white hover:bg-primary-900">Lab Resources</a>
         <a href="reservation.php" class="block px-4 py-2 text-white hover:bg-primary-900">Reservation</a>
     </div>
 
@@ -457,7 +463,7 @@ if ($result && $result->num_rows > 0) {
                         </div>
                     </div>
                 </div>
-            </div>
+                        </div>
         </div>
     </div>
     

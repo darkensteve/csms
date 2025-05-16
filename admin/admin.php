@@ -322,6 +322,36 @@ if ($result) {
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
+        /* Leaderboard styles */
+        .rank-badge {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+        
+        .rank-1 {
+            background-color: #fef3c7;
+            color: #d97706;
+            border: 2px solid #f59e0b;
+        }
+        
+        .rank-2 {
+            background-color: #f1f5f9;
+            color: #64748b;
+            border: 2px solid #94a3b8;
+        }
+        
+        .rank-3 {
+            background-color: #fff7ed;
+            color: #c2410c;
+            border: 2px solid #ea580c;
+        }
+
         /* Dropdown menu styles */
         .dropdown-menu {
             display: none;
@@ -429,14 +459,21 @@ if ($result) {
                             </div>
                         </div>
                         
+                        <!-- Lab Resources dropdown menu -->
+                        
+                        
+                        <a href="lab_resources/index.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-book mr-1"></i> Lab Resources
+                        </a>
+                        
                         <a href="sitin/feedback_reports.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-comment mr-1"></i> Feedback
                         </a>
                         <a href="reservation/reservation.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-calendar-check mr-1"></i> Reservation
                         </a>
-                        <a href="leaderboard/leaderboard.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
-                            <i class="fas fa-trophy mr-1"></i> Leaderboard
+                        <a href="lab_schedule/index.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-laptop mr-1"></i> Lab Schedule
                         </a>
                     </div>
                     
@@ -502,14 +539,34 @@ if ($result) {
             </div>
         </div>
         
+        <!-- Mobile Lab Resources dropdown with toggle -->
+        <div class="relative">
+            <button id="mobile-labresources-dropdown" class="w-full text-left block px-4 py-2 text-white hover:bg-primary-900 flex justify-between items-center">
+                <span><i class="fas fa-book mr-2"></i> Lab Resources</span>
+                <i class="fas fa-chevron-down text-xs"></i>
+            </button>
+            <div id="mobile-labresources-menu" class="hidden bg-primary-950 py-2">
+                <a href="lab_resources/index.php" class="block px-6 py-2 text-white hover:bg-primary-900">
+                    <i class="fas fa-book-open mr-2"></i> Manage Resources
+                </a>
+                <a href="lab_resources/create_tables.php" class="block px-6 py-2 text-white hover:bg-primary-900">
+                    <i class="fas fa-list-alt mr-2"></i> Setup Categories
+                </a>
+            </div>
+        </div>
+        
+        <a href="lab_resources/index.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-book mr-2"></i> Lab Resources
+        </a>
+        
         <a href="sitin/feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-comment mr-2"></i> Feedback
         </a>
         <a href="reservation/reservation.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-calendar-check mr-2"></i> Reservation
         </a>
-        <a href="leaderboard/leaderboard.php" class="block px-4 py-2 text-white hover:bg-primary-900">
-            <i class="fas fa-trophy mr-2"></i> Leaderboard
+        <a href="lab_schedule/index.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-laptop mr-2"></i> Lab Schedule
         </a>
     </div>
 
@@ -584,72 +641,215 @@ if ($result) {
                 </div>
             </div>
 
-            <!-- Edit Announcements Section -->
-            <div class="bg-white rounded-xl shadow-md dashboard-card">
-                <div class="bg-primary-700 text-white px-6 py-4 rounded-t-xl">
-                    <h2 class="text-xl font-semibold flex items-center">
-                        <i class="fas fa-bullhorn mr-2"></i> Edit Announcements
-                    </h2>
-                </div>
-                <div class="p-6 dashboard-section">
-                    <!-- Announcement Form -->
-                    <form action="announcements/process_announcement.php" method="post" class="mb-6 border-b pb-6">
-                        <div class="mb-4">
-                            <label for="announcement_title" class="block text-gray-700 font-medium mb-2">Announcement Title</label>
-                            <input type="text" id="announcement_title" name="title" required
-                                class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 form-input">
-                        </div>
-                        
-                        <div class="mb-4">
-                            <label for="announcement_content" class="block text-gray-700 font-medium mb-2">Announcement Content</label>
-                            <textarea id="announcement_content" name="content" rows="4" required
-                                class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 form-input"></textarea>
-                        </div>
-                        
-                        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition flex items-center">
-                            <i class="fas fa-plus-circle mr-2"></i> Post Announcement
-                        </button>
-                    </form>
+            <!-- Announcements and Leaderboard Section -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Edit Announcements Section -->
+                <div class="bg-white rounded-xl shadow-md dashboard-card">
+                    <div class="bg-primary-700 text-white px-6 py-4 rounded-t-xl">
+                        <h2 class="text-xl font-semibold flex items-center">
+                            <i class="fas fa-bullhorn mr-2"></i> Edit Announcements
+                        </h2>
+                    </div>
+                    <div class="p-6 dashboard-section">
+                        <!-- Announcement Form -->
+                        <form action="announcements/process_announcement.php" method="post" class="mb-6 border-b pb-6">
+                            <div class="mb-4">
+                                <label for="announcement_title" class="block text-gray-700 font-medium mb-2">Announcement Title</label>
+                                <input type="text" id="announcement_title" name="title" required
+                                    class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 form-input">
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="announcement_content" class="block text-gray-700 font-medium mb-2">Announcement Content</label>
+                                <textarea id="announcement_content" name="content" rows="4" required
+                                    class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 form-input"></textarea>
+                            </div>
+                            
+                            <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition flex items-center">
+                                <i class="fas fa-plus-circle mr-2"></i> Post Announcement
+                            </button>
+                        </form>
 
-                    <!-- Existing Announcements -->
-                    <h3 class="text-lg font-medium text-gray-800 mb-4 flex items-center">
-                        <i class="fas fa-list-alt mr-2 text-primary-600"></i> Current Announcements
-                    </h3>
-                    
-                    <?php if (count($announcements) > 0): ?>
-                        <?php foreach ($announcements as $announcement): ?>
-                        <div class="border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50 announcement-card">
-                            <div class="flex justify-between items-start">
-                                <h4 class="font-semibold text-gray-800"><?php echo htmlspecialchars($announcement['title']); ?></h4>
-                                <div class="flex items-center">
-                                    <span class="text-sm text-gray-500 mr-3 bg-gray-200 px-2 py-1 rounded-full">
-                                        <i class="far fa-calendar-alt mr-1"></i>
-                                        <?php echo date('Y-M-d', strtotime($announcement['created_at'])); ?>
-                                    </span>
-                                    <div class="flex space-x-2">
-                                        <a href="announcements/edit_announcement.php?id=<?php echo $announcement['id']; ?>" 
-                                           class="action-icon edit-icon" title="Edit announcement">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                        <a href="announcements/delete_announcement.php?id=<?php echo $announcement['id']; ?>" 
-                                           class="action-icon delete-icon" 
-                                           onclick="return confirm('Are you sure you want to delete this announcement?')"
-                                           title="Delete announcement">
-                                            <i class="fas fa-trash-alt"></i>
-                                        </a>
+                        <!-- Existing Announcements -->
+                        <h3 class="text-lg font-medium text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-list-alt mr-2 text-primary-600"></i> Current Announcements
+                        </h3>
+                        
+                        <?php if (count($announcements) > 0): ?>
+                            <?php foreach ($announcements as $announcement): ?>
+                            <div class="border border-gray-200 rounded-lg p-4 mb-4 bg-gray-50 announcement-card">
+                                <div class="flex justify-between items-start">
+                                    <h4 class="font-semibold text-gray-800"><?php echo htmlspecialchars($announcement['title']); ?></h4>
+                                    <div class="flex items-center">
+                                        <span class="text-sm text-gray-500 mr-3 bg-gray-200 px-2 py-1 rounded-full">
+                                            <i class="far fa-calendar-alt mr-1"></i>
+                                            <?php echo date('Y-M-d', strtotime($announcement['created_at'])); ?>
+                                        </span>
+                                        <div class="flex space-x-2">
+                                            <a href="announcements/edit_announcement.php?id=<?php echo $announcement['id']; ?>" 
+                                               class="action-icon edit-icon" title="Edit announcement">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            <a href="announcements/delete_announcement.php?id=<?php echo $announcement['id']; ?>" 
+                                               class="action-icon delete-icon" 
+                                               onclick="return confirm('Are you sure you want to delete this announcement?')"
+                                               title="Delete announcement">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
+                                <p class="text-gray-700 mt-2"><?php echo nl2br(htmlspecialchars($announcement['content'])); ?></p>
                             </div>
-                            <p class="text-gray-700 mt-2"><?php echo nl2br(htmlspecialchars($announcement['content'])); ?></p>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="text-gray-500 italic flex items-center justify-center p-6 border border-dashed border-gray-300 rounded-lg">
+                                <i class="fas fa-info-circle mr-2"></i> No announcements yet. Create one above.
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- Leaderboard Section -->
+                <div class="bg-white rounded-xl shadow-md dashboard-card">
+                    <div class="bg-primary-700 text-white px-6 py-4 rounded-t-xl">
+                        <h2 class="text-xl font-semibold flex items-center">
+                            <i class="fas fa-trophy mr-2"></i> Student Leaderboard
+                        </h2>
+                    </div>
+                    <div class="p-6 dashboard-section">
+                        <!-- Points Leaderboard -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-medium text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-star mr-2 text-amber-500"></i> Top 5 by Points
+                            </h3>
+                            
+                            <?php
+                            // Get top 5 students by points
+                            $top_points_query = "SELECT u.IDNO as student_id, CONCAT(u.FIRSTNAME, ' ', u.LASTNAME) as student_name, 
+                                                u.points, u.COURSE as course, u.YEARLEVEL as year_level
+                                        FROM users u
+                                        WHERE u.points > 0
+                                        ORDER BY u.points DESC
+                                        LIMIT 5";
+                            $top_points_result = $conn->query($top_points_query);
+                            $top_points = [];
+                            
+                            if ($top_points_result && $top_points_result->num_rows > 0) {
+                                while ($row = $top_points_result->fetch_assoc()) {
+                                    $top_points[] = $row;
+                                }
+                            }
+                            ?>
+                            
+                            <?php if (count($top_points) > 0): ?>
+                                <div class="space-y-3">
+                                    <?php foreach ($top_points as $index => $student): ?>
+                                        <div class="flex items-center p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition">
+                                            <div class="<?php echo $index < 3 ? "rank-badge rank-" . ($index + 1) : "bg-gray-200 text-gray-700 rank-badge"; ?> mr-3">
+                                                <?php echo $index + 1; ?>
+                                            </div>
+                                            <div class="flex-grow">
+                                                <div class="font-semibold text-gray-800"><?php echo htmlspecialchars($student['student_name']); ?></div>
+                                                <div class="text-xs text-gray-500 flex items-center">
+                                                    <span class="mr-2"><?php echo htmlspecialchars($student['student_id']); ?></span>
+                                                    <?php if (!empty($student['course'])): ?>
+                                                        <span class="mr-2">|</span>
+                                                        <span><?php echo htmlspecialchars($student['course']); ?></span>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($student['year_level'])): ?>
+                                                        <span class="mr-2">|</span>
+                                                        <span>Year <?php echo htmlspecialchars($student['year_level']); ?></span>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                            <div class="text-right">
+                                                <div class="font-bold text-amber-600"><?php echo number_format($student['points']); ?></div>
+                                                <div class="text-xs text-gray-500">points</div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="text-gray-500 italic flex items-center justify-center p-6 border border-dashed border-gray-300 rounded-lg">
+                                    <i class="fas fa-info-circle mr-2"></i> No points data available yet.
+                                </div>
+                            <?php endif; ?>
                         </div>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <div class="text-gray-500 italic flex items-center justify-center p-6 border border-dashed border-gray-300 rounded-lg">
-                            <i class="fas fa-info-circle mr-2"></i> No announcements yet. Create one above.
+                        
+                        <!-- Sessions Leaderboard -->
+                        <div>
+                            <h3 class="text-lg font-medium text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-user-check mr-2 text-blue-500"></i> Top 5 by Sessions
+                            </h3>
+                            
+                            <?php
+                            // Get top 5 students by number of sessions
+                            $top_sessions_query = "SELECT 
+                                                s.student_id,
+                                                s.student_name,
+                                                COUNT(s.session_id) as total_sessions,
+                                                u.COURSE as course,
+                                                u.YEARLEVEL as year_level
+                                            FROM 
+                                                sit_in_sessions s
+                                            LEFT JOIN users u ON s.student_id = u.IDNO
+                                            WHERE 
+                                                s.status = 'inactive'
+                                            GROUP BY 
+                                                s.student_id, s.student_name
+                                            ORDER BY 
+                                                total_sessions DESC
+                                            LIMIT 5";
+                            $top_sessions_result = $conn->query($top_sessions_query);
+                            $top_sessions = [];
+                            
+                            if ($top_sessions_result && $top_sessions_result->num_rows > 0) {
+                                while ($row = $top_sessions_result->fetch_assoc()) {
+                                    $top_sessions[] = $row;
+                                }
+                            }
+                            ?>
+                            
+                            <?php if (count($top_sessions) > 0): ?>
+                                <div class="space-y-3">
+                                    <?php foreach ($top_sessions as $index => $student): ?>
+                                        <div class="flex items-center p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition">
+                                            <div class="<?php echo $index < 3 ? "rank-badge rank-" . ($index + 1) : "bg-gray-200 text-gray-700 rank-badge"; ?> mr-3">
+                                                <?php echo $index + 1; ?>
+                                            </div>
+                                            <div class="flex-grow">
+                                                <div class="font-semibold text-gray-800"><?php echo htmlspecialchars($student['student_name']); ?></div>
+                                                <div class="text-xs text-gray-500 flex items-center">
+                                                    <span class="mr-2"><?php echo htmlspecialchars($student['student_id']); ?></span>
+                                                    <?php if (!empty($student['course'])): ?>
+                                                        <span class="mr-2">|</span>
+                                                        <span><?php echo htmlspecialchars($student['course']); ?></span>
+                                                    <?php endif; ?>
+                                                    <?php if (!empty($student['year_level'])): ?>
+                                                        <span class="mr-2">|</span>
+                                                        <span>Year <?php echo htmlspecialchars($student['year_level']); ?></span>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                            <div class="text-right">
+                                                <div class="font-bold text-blue-600"><?php echo number_format($student['total_sessions']); ?></div>
+                                                <div class="text-xs text-gray-500">sessions</div>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="text-gray-500 italic flex items-center justify-center p-6 border border-dashed border-gray-300 rounded-lg">
+                                    <i class="fas fa-info-circle mr-2"></i> No session data available yet.
+                                </div>
+                            <?php endif; ?>
                         </div>
-                    <?php endif; ?>
+                    </div>
                 </div>
             </div>
+            
+            <!-- Main Grid section removed -->
         </div>
     </div>
 
@@ -730,6 +930,8 @@ if ($result) {
                 mobileSitInMenu.classList.toggle('hidden');
             });
         }
+        
+                        // Lab Resources toggle implementation removed
         
         // Close dropdowns when clicking outside
         window.addEventListener('click', function(e) {

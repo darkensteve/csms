@@ -274,43 +274,29 @@ if ($lab_result) {
                 
                 <div class="flex items-center space-x-3">
                     <div class="hidden md:flex items-center space-x-2 mr-4">
-                        <a href="../admin.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../admin.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-home mr-1"></i> Home
                         </a>
-                        <a href="../students/search_student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../students/search_student.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-search mr-1"></i> Search
                         </a>
-                        <a href="../students/student.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../students/student.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-users mr-1"></i> Students
                         </a>
-                        <!-- Sit-In dropdown menu -->
-                        <div class="relative inline-block" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
-                            <button class="px-3 py-2 bg-primary-800 rounded transition flex items-center">
-                                <i class="fas fa-user-check mr-1"></i> Sit-In
-                                <i class="fas fa-chevron-down ml-1 text-xs"></i>
-                            </button>
-                            <div x-show="open" class="absolute z-10 mt-0 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5" style="margin-top: -1px; padding-top: 8px;">
-                                <div class="py-1">
-                                    <a href="current_sitin.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                        <i class="fas fa-user-check mr-1"></i> Current Sit-In
-                                    </a>
-                                    <a href="sitin_records.php" class="block px-4 py-2 text-sm bg-gray-100 text-primary-700 font-medium">
-                                        <i class="fas fa-list mr-1"></i> Sit-In Records
-                                    </a>
-                                    <a href="sitin_reports.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                        <i class="fas fa-chart-bar mr-1"></i> Sit-In Reports
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                        <a href="feedback_reports.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="current_sitin.php" class="nav-button px-3 py-2 bg-primary-800 rounded transition flex items-center">
+                            <i class="fas fa-user-check mr-1"></i> Sit-In
+                        </a>
+                        <a href="../lab_resources/index.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-book mr-1"></i> Lab Resources
+                        </a>
+                        <a href="feedback_reports.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-comment mr-1"></i> Feedback
                         </a>
-                        <a href="../reservation/reservation.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                        <a href="../reservation/reservation.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-calendar-check mr-1"></i> Reservation
                         </a>
-                        <a href="../leaderboard/leaderboard.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
-                            <i class="fas fa-trophy mr-1"></i> Leaderboard
+                        <a href="../lab_schedule/index.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-laptop mr-1"></i> Lab Schedule
                         </a>
                     </div>
                     
@@ -322,7 +308,7 @@ if ($lab_result) {
                             <div class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
                                 <img src="../newp.jpg" alt="Admin" class="w-full h-full object-cover">
                             </div>
-                            <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username); ?></span>
+                            <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username ?? 'Admin'); ?></span>
                             <i class="fas fa-chevron-down text-xs"></i>
                         </button>
                         <div id="userMenu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg overflow-hidden z-20">
@@ -330,7 +316,7 @@ if ($lab_result) {
                                 <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
                                     <i class="fas fa-user-circle mr-2"></i> Profile
                                 </a>
-                                <a href="edit_admin_profile.php" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
+                                <a href="../edit_admin_profile.php" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">
                                     <i class="fas fa-user-edit mr-2"></i> Edit Profile
                                 </a>
                                 <div class="border-t border-gray-100"></div>
@@ -356,32 +342,20 @@ if ($lab_result) {
         <a href="../students/student.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-users mr-2"></i> Students
         </a>
-        <!-- Mobile Sit-In dropdown with toggle -->
-        <div class="relative">
-            <button id="mobile-sitin-dropdown" class="w-full text-left block px-4 py-2 text-white bg-primary-900 flex justify-between items-center">
-                <span><i class="fas fa-user-check mr-2"></i> Sit-In</span>
-                <i class="fas fa-chevron-down text-xs"></i>
-            </button>
-            <div id="mobile-sitin-menu" class="hidden bg-primary-950 py-2">
-                <a href="current_sitin.php" class="block px-6 py-2 text-white hover:bg-primary-900">
-                    <i class="fas fa-user-check mr-2"></i> Current Sit-In
-                </a>
-                <a href="sitin_records.php" class="block px-6 py-2 text-white bg-primary-800">
-                    <i class="fas fa-list mr-2"></i> Sit-In Records
-                </a>
-                <a href="sitin_reports.php" class="block px-6 py-2 text-white hover:bg-primary-900">
-                    <i class="fas fa-chart-bar mr-2"></i> Sit-In Reports
-                </a>
-            </div>
-        </div>
+        <a href="current_sitin.php" class="block px-4 py-2 text-white bg-primary-900">
+            <i class="fas fa-user-check mr-2"></i> Sit-In
+        </a>
+        <a href="../lab_resources/index.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-book mr-2"></i> Lab Resources
+        </a>
         <a href="feedback_reports.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-comment mr-2"></i> Feedback
         </a>
         <a href="../reservation/reservation.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-calendar-check mr-2"></i> Reservation
         </a>
-        <a href="../leaderboard/leaderboard.php" class="block px-4 py-2 text-white hover:bg-primary-900">
-            <i class="fas fa-trophy mr-2"></i> Leaderboard
+        <a href="../lab_schedule/index.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-laptop mr-2"></i> Lab Schedule
         </a>
     </div>
 
