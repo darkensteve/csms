@@ -460,9 +460,23 @@ if (empty($labs)) {
                         <a href="student.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-users mr-1"></i> Students
                         </a>
-                        <a href="../sitin/current_sitin.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
-                            <i class="fas fa-user-check mr-1"></i> Sit-In
-                        </a>
+                        <div class="relative inline-block dropdown-container" id="sitInDropdown">
+                            <button class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center" id="sitInMenuButton">
+                                <i class="fas fa-user-check mr-1"></i> Sit-In
+                                <i class="fas fa-chevron-down ml-1 text-xs"></i>
+                            </button>
+                            <div class="dropdown-menu" id="sitInDropdownMenu">
+                                <a href="../sitin/current_sitin.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-user-check mr-1"></i> Current Sit-In
+                                </a>
+                                <a href="../sitin/sitin_records.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-list mr-1"></i> Sit-In Records
+                                </a>
+                                <a href="../sitin/sitin_reports.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-chart-bar mr-1"></i> Sit-In Reports
+                                </a>
+                            </div>
+                        </div>
                         <a href="../lab_resources/index.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-book mr-1"></i> Lab Resources
                         </a>

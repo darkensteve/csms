@@ -261,6 +261,48 @@ if ($lab_result) {
             height: 220px;
             margin-top: 20px;
         }
+        
+        /* Dropdown menu styles */
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            z-index: 10;
+            min-width: 12rem;
+            padding: 0.5rem 0;
+            margin-top: 0.5rem; /* Add slight margin to prevent accidental mouseleave */
+            background-color: white;
+            border-radius: 0.375rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(229, 231, 235, 1);
+            top: 100%; /* Position right below the button */
+            left: 0;
+        }
+        
+        /* Create an accessible hover area between button and dropdown */
+        .dropdown-container {
+            position: relative;
+        }
+        
+        /* Add this pseudo-element to create an invisible bridge */
+        .dropdown-container:after {
+            content: '';
+            position: absolute;
+            height: 15px; /* Height of the bridge */
+            width: 100%;
+            bottom: -15px; /* Position it just below the button */
+            left: 0;
+            z-index: 5; /* Below the menu but above other elements */
+        }
+        
+        .dropdown-menu.show {
+            display: block;
+            animation: fadeIn 0.2s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body class="font-sans h-screen flex flex-col">
@@ -283,9 +325,23 @@ if ($lab_result) {
                         <a href="../students/student.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-users mr-1"></i> Students
                         </a>
-                        <a href="current_sitin.php" class="nav-button px-3 py-2 bg-primary-800 rounded transition flex items-center">
-                            <i class="fas fa-user-check mr-1"></i> Sit-In
-                        </a>
+                        <div class="relative inline-block dropdown-container" id="sitInDropdown">
+                            <button class="nav-button px-3 py-2 bg-primary-800 rounded transition flex items-center" id="sitInMenuButton">
+                                <i class="fas fa-user-check mr-1"></i> Sit-In
+                                <i class="fas fa-chevron-down ml-1 text-xs"></i>
+                            </button>
+                            <div class="dropdown-menu" id="sitInDropdownMenu">
+                                <a href="current_sitin.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-user-check mr-1"></i> Current Sit-In
+                                </a>
+                                <a href="sitin_records.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-list mr-1"></i> Sit-In Records
+                                </a>
+                                <a href="sitin_reports.php" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <i class="fas fa-chart-bar mr-1"></i> Sit-In Reports
+                                </a>
+                            </div>
+                        </div>
                         <a href="../lab_resources/index.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-book mr-1"></i> Lab Resources
                         </a>
@@ -619,6 +675,10 @@ if ($lab_result) {
             if (!document.getElementById('userDropdown').contains(e.target)) {
                 document.getElementById('userMenu').classList.add('hidden');
             }
+            
+            if (!document.getElementById('sitInDropdown')?.contains(e.target)) {
+                document.getElementById('sitInDropdownMenu')?.classList.remove('show');
+            }
         });
 
         // Enhance form inputs
@@ -629,6 +689,61 @@ if ($lab_result) {
             input.addEventListener('blur', function() {
                 this.parentElement.classList.remove('ring-2', 'ring-primary-100', 'ring-opacity-50');
             });
+        });
+
+        // Desktop Sit-In dropdown toggle implementation
+        document.addEventListener('DOMContentLoaded', function() {
+            const sitInDropdown = document.getElementById('sitInDropdown');
+            const sitInMenuButton = document.getElementById('sitInMenuButton');
+            const sitInDropdownMenu = document.getElementById('sitInDropdownMenu');
+            
+            if (sitInDropdown && sitInDropdownMenu) {
+                // Variable to track if we should keep the menu open
+                let isMouseOverDropdown = false;
+                let menuTimeout = null;
+                
+                // Button click handler
+                sitInMenuButton.addEventListener('click', function(event) {
+                    event.stopPropagation();
+                    sitInDropdownMenu.classList.toggle('show');
+                });
+                
+                // Mouse enter/leave for the entire dropdown container
+                sitInDropdown.addEventListener('mouseenter', function() {
+                    isMouseOverDropdown = true;
+                    clearTimeout(menuTimeout);
+                    if (window.innerWidth >= 768) { // Only on desktop
+                        sitInDropdownMenu.classList.add('show');
+                    }
+                });
+                
+                sitInDropdown.addEventListener('mouseleave', function() {
+                    isMouseOverDropdown = false;
+                    // Small delay before hiding to improve UX
+                    menuTimeout = setTimeout(() => {
+                        if (!isMouseOverDropdown && window.innerWidth >= 768) {
+                            sitInDropdownMenu.classList.remove('show');
+                        }
+                    }, 150);
+                });
+                
+                // Additional handlers for the menu itself
+                sitInDropdownMenu.addEventListener('mouseenter', function() {
+                    isMouseOverDropdown = true;
+                    clearTimeout(menuTimeout);
+                });
+                
+                sitInDropdownMenu.addEventListener('mouseleave', function() {
+                    isMouseOverDropdown = false;
+                    if (window.innerWidth >= 768) {
+                        menuTimeout = setTimeout(() => {
+                            if (!isMouseOverDropdown) {
+                                sitInDropdownMenu.classList.remove('show');
+                            }
+                        }, 150);
+                    }
+                });
+            }
         });
 
         // Mobile dropdown toggle for Sit-In menu
