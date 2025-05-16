@@ -673,6 +673,9 @@ if ($logs_result && $logs_result->num_rows > 0) {
                         <a href="reservation.php" class="nav-button bg-primary-800 px-3 py-2 rounded transition flex items-center">
                             <i class="fas fa-calendar-check mr-1"></i> Reservation
                         </a>
+                        <a href="../leaderboard/leaderboard.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-trophy mr-1"></i> Leaderboard
+                        </a>
                     </div>
                     
                     <button id="mobile-menu-button" class="md:hidden text-white focus:outline-none">

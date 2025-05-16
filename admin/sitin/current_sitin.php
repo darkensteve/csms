@@ -518,6 +518,9 @@ if (isset($_POST['process_sitin']) && isset($_POST['student_id'])) {
                         <a href="../reservation/reservation.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-calendar-check mr-1"></i> Reservation
                         </a>
+                        <a href="../leaderboard/leaderboard.php" class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
+                            <i class="fas fa-trophy mr-1"></i> Leaderboard
+                        </a>
                         <?php endif; ?>
                     </div>
                     
@@ -587,6 +590,9 @@ if (isset($_POST['process_sitin']) && isset($_POST['student_id'])) {
         </a>
         <a href="../reservation/reservation.php" class="block px-4 py-2 text-white hover:bg-primary-900">
             <i class="fas fa-calendar-check mr-2"></i> Reservation
+        </a>
+        <a href="../leaderboard/leaderboard.php" class="block px-4 py-2 text-white hover:bg-primary-900">
+            <i class="fas fa-trophy mr-2"></i> Leaderboard
         </a>
         <?php endif; ?>
     </div>
