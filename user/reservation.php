@@ -2,12 +2,18 @@
 // Start the session at the beginning
 session_start();
 
+// Set timezone to Philippine time
+date_default_timezone_set('Asia/Manila');
+
 // Check if user is logged in
 if (!isset($_SESSION['id'])) {
     // Redirect to login page if not logged in
     header("Location: index.php");
     exit();
 }
+
+// Include notification functions
+require_once '../includes/notification_functions.php';
 
 // Get the logged-in user's ID
 $loggedInUserId = $_SESSION['id'];
@@ -376,6 +382,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                 $stmt->bind_param("iiisssss", $loggedInUserId, $labId, $computerId, $date, $timeSlot, $purpose, $status, $createdAt);
                 
                 if ($stmt->execute()) {
+                    // Get the new reservation ID
+                    $reservation_id = $stmt->insert_id;
+                    
                     // If successful, mark the computer as pending (not reserved yet)
                     $updateComputer = $conn->prepare("UPDATE computers SET status = 'pending' WHERE computer_id = ?");
                     $updateComputer->bind_param("i", $computerId);
@@ -386,6 +395,33 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_reservation']))
                     
                     // Log successful reservation
                     error_log("Reservation created successfully: User=$loggedInUserId, Lab=$labId, Computer=$computerId, Time=$timeSlot");
+                    
+                    // Get student name and lab name for notification
+                    $student_name = $firstName . ' ' . $lastName;
+                    
+                    // Get lab name from database directly
+                    $lab_name = '';
+                    $lab_query = $conn->prepare("SELECT lab_name FROM labs WHERE lab_id = ?");
+                    if ($lab_query) {
+                        $lab_query->bind_param("i", $labId);
+                        $lab_query->execute();
+                        $lab_result = $lab_query->get_result();
+                        if ($lab_result && $lab_result->num_rows > 0) {
+                            $lab_data = $lab_result->fetch_assoc();
+                            $lab_name = $lab_data['lab_name'];
+                        } else {
+                            $lab_name = "Laboratory #$labId";
+                        }
+                    }
+                    
+                    // Send notification to admins
+                    notify_new_reservation(
+                        $reservation_id,
+                        $loggedInUserId,
+                        $student_name,
+                        $lab_name,
+                        $date . ' ' . $timeSlot
+                    );
                 } else {
                     $message = "Error: " . $stmt->error;
                     $messageType = "error";

@@ -750,12 +750,12 @@ if (isset($_POST['process_sitin']) && isset($_POST['student_id'])) {
                                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <?php if ($is_admin || (isset($_SESSION['user_id']) && $_SESSION['user_id'] == $sit_in['user_id'])): ?>
                                                 <div class="flex space-x-4">
-                                                    <button type="button" 
-                                                        class="text-red-600 hover:text-red-900 timeout-btn" 
-                                                        title="Time Out Student"
-                                                        data-sitin-id="<?php echo $sit_in['id']; ?>">
+                                                    <a href="javascript:void(0)" 
+                                                       onclick="if(confirm('Are you sure you want to time out this student?')) { window.location.href='timeout_sitin.php?id=<?php echo $sit_in['id']; ?>&action=timeout'; }"
+                                                       class="text-red-600 hover:text-red-900" 
+                                                       title="Time Out Student">
                                                         <i class="fas fa-sign-out-alt text-lg"></i>
-                                                    </button>
+                                                    </a>
                                                 </div>
                                             <?php endif; ?>
                                         </td>
@@ -1057,6 +1057,8 @@ if (isset($_POST['process_sitin']) && isset($_POST['student_id'])) {
         <div class="container mx-auto px-4 text-center text-gray-500 text-sm">
             &copy; 2024 SitIn System. All rights reserved.
         </div>
+        
+                <!-- Forms removed as we're using direct links now -->
     </footer>
     <script>
         // Toggle mobile menu
@@ -1549,101 +1551,132 @@ if (isset($_POST['process_sitin']) && isset($_POST['student_id'])) {
         });
 
         // Handle timeout button click
-        $(document).on('click', '.timeout-btn', function() {
+        $(document).on('click', '.timeout-btn', function(e) {
+            e.preventDefault(); // Prevent any default action
             const sitinId = $(this).data('sitin-id');
+            console.log('Timeout button clicked for Sit-In ID:', sitinId);
+            
             if (confirm('Are you sure you want to time out this student? This will mark their status as inactive.')) {
-                $.ajax({
-                    url: 'timeout_sitin.php',
-                    type: 'POST',
-                    data: { id: sitinId },
-                    dataType: 'json',
-                    success: function(response) {
-                        if (response.success) {
-                            // Remove only the specific row
-                            $('#sitin-row-' + sitinId).fadeOut(300, function() {
-                                $(this).remove();
-                                
-                                // Check if there are no more rows
-                                if ($('#sitinsTable tbody tr').length === 0) {
-                                    // Show the "no sit-ins" message
-                                    $('#sitinTableContainer').html(`
-                                        <div class="text-center py-8">
-                                            <div class="text-gray-400 text-5xl mb-4">
-                                                <i class="fas fa-mug-hot"></i>
+                console.log('Starting AJAX request to timeout_sitin.php with ID:', sitinId);
+                
+                // Show temporary status indicator
+                const $row = $('#sitin-row-' + sitinId);
+                $row.addClass('bg-yellow-50');
+                
+                // Set the value in the fallback form first, in case AJAX fails
+                $('#manual-timeout-id').val(sitinId);
+                
+                try {
+                    // Use a direct path to the timeout script
+                    const timeoutUrl = 'timeout_sitin.php';
+                    console.log('Timeout URL:', timeoutUrl);
+                    
+                    $.ajax({
+                        url: timeoutUrl,
+                        type: 'POST',
+                        data: { id: sitinId },
+                        dataType: 'json',
+                        timeout: 10000, // 10 second timeout
+                        beforeSend: function(xhr) {
+                            console.log('Sending AJAX request with data:', { id: sitinId });
+                            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                        },
+                        success: function(response) {
+                            console.log('AJAX response received:', response);
+                            
+                            if (response && response.success) {
+                                // Remove only the specific row
+                                $('#sitin-row-' + sitinId).fadeOut(300, function() {
+                                    $(this).remove();
+                                    
+                                    // Check if there are no more rows
+                                    if ($('#sitinsTable tbody tr').length === 0) {
+                                        // Show the "no sit-ins" message
+                                        $('#sitinsTable').parent().html(`
+                                            <div class="text-center py-8">
+                                                <div class="text-gray-400 text-5xl mb-4">
+                                                    <i class="fas fa-mug-hot"></i>
+                                                </div>
+                                                <h3 class="text-lg font-medium text-gray-900 mb-2">No active sit-ins at the moment</h3>
+                                                <p class="text-gray-500 mb-6">Create a new sit-in to get started</p>
+                                                <a href="javascript:void(0)" id="registerSitinBtn" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors">
+                                                    <i class="fas fa-plus mr-2"></i> Register New Sit-In
+                                                </a>
                                             </div>
-                                            <h3 class="text-lg font-medium text-gray-900 mb-2">No active sit-ins at the moment</h3>
-                                            <p class="text-gray-500 mb-6">Create a new sit-in to get started</p>
-                                            <a href="javascript:void(0)" id="registerSitinBtn" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 transition-colors">
-                                                <i class="fas fa-plus mr-2"></i> Register New Sit-In
-                                            </a>
-                                        </div>
-                                    `);
-                                    // Reattach event listener to the newly created button
-                                    $('#registerSitinBtn').on('click', function() {
-                                        $('#searchStudentModal').removeClass('hidden').addClass('show');
-                                        document.body.style.overflow = 'hidden';
-                                        $('#searchStudentName').focus();
-                                    });
-                                }
-                            });
+                                        `);
+                                        // Reattach event listener to the newly created button
+                                        $('#registerSitinBtn').on('click', function() {
+                                            $('#searchStudentModal').removeClass('hidden').addClass('show');
+                                            document.body.style.overflow = 'hidden';
+                                            $('#searchStudentName').focus();
+                                        });
+                                    }
+                                });
 
-                            // Show success notification
+                                // Show success notification
+                                $('#notificationContainer').append(`
+                                    <div class="notification success">
+                                        <i class="fas fa-check-circle mr-2"></i> ${response.message}
+                                    </div>
+                                `);
+                                // Auto hide notifications after 5 seconds
+                                const $notification = $('.notification').last();
+                                setTimeout(() => {
+                                    $notification.css('opacity', '0');
+                                    $notification.css('transition', 'opacity 0.5s ease-out');
+                                    setTimeout(() => {
+                                        $notification.remove();
+                                    }, 500);
+                                }, 5000);
+                            } else {
+                                // Show error notification
+                                $row.removeClass('bg-yellow-50');
+                                $('#notificationContainer').append(`
+                                    <div class="notification error">
+                                        <i class="fas fa-exclamation-circle mr-2"></i> ${response ? response.message : 'Failed to time out student. Please try again.'}
+                                    </div>
+                                `);
+                                // Auto hide notifications after 5 seconds
+                                const $notification = $('.notification').last();
+                                setTimeout(() => {
+                                    $notification.css('opacity', '0');
+                                    $notification.css('transition', 'opacity 0.5s ease-out');
+                                    setTimeout(() => {
+                                        $notification.remove();
+                                    }, 500);
+                                }, 5000);
+                            }
+                        },
+                        error: function(xhr, status, error) {
+                            console.error("AJAX Error:", status, error);
+                            console.log("Response Text:", xhr.responseText);
+                            $row.removeClass('bg-yellow-50');
+                            
+                            // Show an error message
                             $('#notificationContainer').append(`
-                                <div class="notification success">
-                                    <i class="fas fa-check-circle mr-2"></i> ${response.message}
+                                <div class="notification warning">
+                                    <i class="fas fa-exclamation-triangle mr-2"></i> AJAX request failed. Trying alternative method...
                                 </div>
                             `);
-                            // Auto hide notifications after 5 seconds
-                            const $notification = $('.notification').last();
-                            setTimeout(() => {
-                                $notification.css('opacity', '0');
-                                $notification.css('transition', 'opacity 0.5s ease-out');
-                                setTimeout(() => {
-                                    $notification.remove();
-                                }, 500);
-                            }, 5000);
-                        } else {
-                            // Show error notification
-                            $('#notificationContainer').append(`
-                                <div class="notification error">
-                                    <i class="fas fa-exclamation-circle mr-2"></i> ${response.message}
-                                </div>
-                            `);
-                            // Auto hide notifications after 5 seconds
-                            const $notification = $('.notification').last();
-                            setTimeout(() => {
-                                $notification.css('opacity', '0');
-                                $notification.css('transition', 'opacity 0.5s ease-out');
-                                setTimeout(() => {
-                                    $notification.remove();
-                                }, 500);
-                            }, 5000);
-                        }
-                    },
-                    error: function(xhr, status, error) {
-                        console.error("AJAX Error:", status, error);
-                        // Show error notification
-                        $('#notificationContainer').append(`
-                            <div class="notification error">
-                                <i class="fas fa-exclamation-circle mr-2"></i> An error occurred while timing out the student.
-                            </div>
-                        `);
-                        // Auto hide notifications after 5 seconds
-                        const $notification = $('.notification').last();
-                        setTimeout(() => {
-                            $notification.css('opacity', '0');
-                            $notification.css('transition', 'opacity 0.5s ease-out');
-                            setTimeout(() => {
-                                $notification.remove();
+                            
+                            // Use the manual form as a fallback
+                            setTimeout(function() {
+                                $('#manual-timeout-form').submit();
                             }, 500);
-                        }, 5000);
-                    }
-                });
+                        }
+                    });
+                } catch (e) {
+                    console.error("Exception during AJAX request:", e);
+                    // Use the manual form as a fallback on any exception
+                    $('#manual-timeout-form').submit();
+                }
             }
         });
 
+                // Timeout handling is now done directly through the onclick attribute of the links
+
         // Mobile dropdown toggle for Sit-In menu
-        document.getElementById('mobile-sitin-dropdown').addEventListener('click', function() {
+        document.getElementById('mobile-sitin-dropdown')?.addEventListener('click', function() {
             document.getElementById('mobile-sitin-menu').classList.toggle('hidden');
         });
     </script>

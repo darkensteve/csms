@@ -12,6 +12,8 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
 
 // Database connection
 require_once '../includes/db_connect.php';
+// Include notification functions
+require_once '../includes/notification_functions.php';
 
 // Set timezone to Philippine time
 date_default_timezone_set('Asia/Manila');
@@ -102,6 +104,25 @@ if (isset($_POST['update_reservation'])) {
                         );
                         
                         if ($stmt_sitin->execute()) {
+                            // Send notification to student about approved reservation
+                            notify_reservation_status(
+                                $reservation['user_id'],
+                                $reservation_id,
+                                'approved',
+                                $_SESSION['admin_id'],
+                                $admin_username
+                            );
+                            
+                            // Also notify about sit-in session
+                            notify_sitin_started(
+                                $stmt_sitin->insert_id,
+                                $reservation['user_id'],
+                                $student_name,
+                                $labs[$reservation['lab_id']]['lab_name'] ?? "Laboratory #{$reservation['lab_id']}",
+                                $_SESSION['admin_id'],
+                                $admin_username
+                            );
+                            
                             $messages[] = [
                                 'type' => 'success',
                                 'text' => "Reservation approved and sit-in session created for student {$student_name}"
@@ -119,6 +140,15 @@ if (isset($_POST['update_reservation'])) {
                         $stmt_computer->execute();
                         $stmt_computer->close();
                     }
+                    
+                    // Send notification to student about rejected reservation
+                    notify_reservation_status(
+                        $reservation['user_id'],
+                        $reservation_id,
+                        'rejected',
+                        $_SESSION['admin_id'],
+                        $admin_username
+                    );
                     
                     $messages[] = [
                         'type' => 'success',

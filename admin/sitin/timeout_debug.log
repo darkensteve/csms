@@ -1,0 +1,19 @@
+[2025-05-17 10:04:57] Script started. POST data: []
+[2025-05-17 10:04:57] Request method: GET
+[2025-05-17 10:04:57] Headers: {"Host":"localhost","Connection":"keep-alive","sec-ch-ua":"\"Chromium\";v=\"136\", \"Brave\";v=\"136\", \"Not.A\/Brand\";v=\"99\"","sec-ch-ua-mobile":"?0","sec-ch-ua-platform":"\"Windows\"","Upgrade-Insecure-Requests":"1","User-Agent":"Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/136.0.0.0 Safari\/537.36","Accept":"text\/html,application\/xhtml+xml,application\/xml;q=0.9,image\/avif,image\/webp,image\/apng,*\/*;q=0.8","Sec-GPC":"1","Accept-Language":"en-US,en;q=0.7","Sec-Fetch-Site":"same-origin","Sec-Fetch-Mode":"navigate","Sec-Fetch-User":"?1","Sec-Fetch-Dest":"document","Referer":"http:\/\/localhost\/sitin\/admin\/sitin\/current_sitin.php","Accept-Encoding":"gzip, deflate, br, zstd","Cookie":"PHPSESSID=7t87ddbmeeler1b9tod9aut2ts"}
+[2025-05-17 10:04:57] Is direct submit: false
+[2025-05-17 10:04:57] Is manual fallback: false
+[2025-05-17 10:04:57] Is AJAX request: false
+[2025-05-17 10:04:57] Processing timeout from GET request for sitin_id: 93
+[2025-05-17 10:04:57] Processing timeout for sitin_id: 93
+[2025-05-17 10:04:57] Transaction started
+[2025-05-17 10:04:57] Executing query: SELECT student_id, computer_id FROM sit_in_sessions WHERE session_id = ? AND status = 'active' with id: 93
+[2025-05-17 10:04:57] Found active session for student_id: 22596886, computer_id: 48
+[2025-05-17 10:04:57] Executing update query: UPDATE sit_in_sessions SET status = 'inactive', check_out_time = ? WHERE session_id = ? AND status = 'active'
+[2025-05-17 10:04:57] Successfully updated sit-in session status to inactive
+[2025-05-17 10:04:57] Executing sessions update query for student_id: 22596886
+[2025-05-17 10:04:57] Updating computer status to available for computer_id: 48
+[2025-05-17 10:04:57] Actor ID for system log: 1
+[2025-05-17 10:04:57] Logging timeout action to system_logs
+[2025-05-17 10:04:57] Transaction committed successfully
+[2025-05-17 10:04:57] Redirecting to: current_sitin.php?timeout_success=1&t=1747447497

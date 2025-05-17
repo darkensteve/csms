@@ -469,6 +469,7 @@ if ($result) {
                         <a href="sitin/feedback_reports.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-comment mr-1"></i> Feedback
                         </a>
+                        
                         <a href="reservation/reservation.php" class="nav-button px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
                             <i class="fas fa-calendar-check mr-1"></i> Reservation
                         </a>
@@ -480,12 +481,16 @@ if ($result) {
                     <button id="mobile-menu-button" class="md:hidden text-white focus:outline-none">
                         <i class="fas fa-bars text-xl"></i>
                     </button>
+                    
+                    <!-- Notification dropdown -->
+                    <?php include_once '../includes/admin_notification_dropdown.php'; ?>
+                    
                     <div class="relative">
                         <button class="flex items-center space-x-2 focus:outline-none" id="userDropdown" onclick="toggleUserDropdown()">
                             <div class="w-8 h-8 rounded-full overflow-hidden border border-gray-200">
                                 <img src="newp.jpg" alt="Admin" class="w-full h-full object-cover">
                             </div>
-                            <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username ?? 'Admin'); ?></span>
+                            <span class="hidden sm:inline-block"><?php echo htmlspecialchars($admin_username); ?></span>
                             <i class="fas fa-chevron-down text-xs"></i>
                         </button>
                         <div id="userMenu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg overflow-hidden z-20">

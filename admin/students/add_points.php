@@ -1,6 +1,8 @@
 <?php
 // Include database connection
 require_once '../../includes/db_connect.php';
+// Include notification functions
+require_once '../../includes/notification_functions.php';
 session_start();
 
 // Check if admin is logged in
@@ -119,6 +121,9 @@ try {
         $log_stmt->bind_param('sisss', $student_id, $points_to_add, $reason, $admin_id, $admin_username);
         $log_stmt->execute();
     }
+    
+    // 6. Create notification for the student
+    notify_points_added($student_id, $points_to_add, $reason, $admin_id, $admin_username);
     
     // Commit the transaction
     $conn->commit();

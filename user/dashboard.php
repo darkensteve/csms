@@ -196,16 +196,10 @@ if ($result && $result->num_rows > 0) {
                 <div class="flex items-center space-x-3">
                     <div class="hidden md:flex items-center space-x-2 mr-4">
                         <a href="dashboard.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Home</a>
-                        <div class="relative group">
-                            <button class="px-3 py-2 rounded hover:bg-primary-800 transition flex items-center">
-                                Notification <i class="fas fa-chevron-down ml-1 text-xs"></i>
-                            </button>
-                            <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 hidden group-hover:block">
-                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Action 1</a>
-                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Action 2</a>
-                                <a href="#" class="block px-4 py-2 text-gray-800 hover:bg-gray-100">Action 3</a>
-                            </div>
-                        </div>
+                        
+                        <!-- Notification dropdown -->
+                        <?php include_once '../includes/user_notification_dropdown.php'; ?>
+                        
                         <a href="edit.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Edit Profile</a>
                         <a href="leaderboard.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">Leaderboard</a>
                         <a href="history.php" class="px-3 py-2 rounded hover:bg-primary-800 transition">History</a>
@@ -228,14 +222,44 @@ if ($result && $result->num_rows > 0) {
     <!-- Mobile Navigation Menu (hidden by default) -->
     <div id="mobile-menu" class="md:hidden bg-primary-800 hidden">
         <a href="dashboard.php" class="block px-4 py-2 text-white hover:bg-primary-900">Home</a>
-        <button class="mobile-dropdown-button w-full text-left px-4 py-2 text-white hover:bg-primary-900 flex justify-between items-center">
-            Notification <i class="fas fa-chevron-down ml-1"></i>
+        
+        <!-- Notification dropdown -->
+        <button id="mobile-notification-button" class="w-full text-left block px-4 py-2 text-white hover:bg-primary-900 flex justify-between items-center">
+            <span>Notifications</span>
+            <?php if (isset($unread_count) && $unread_count > 0): ?>
+            <span class="bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center ml-1">
+                <?php echo $unread_count <= 9 ? $unread_count : '9+'; ?>
+            </span>
+            <?php endif; ?>
+            <i class="fas fa-chevron-down ml-auto"></i>
         </button>
-        <div class="mobile-dropdown-content hidden bg-primary-900 px-4 py-2">
-            <a href="#" class="block py-1 text-white hover:text-gray-300">Action 1</a>
-            <a href="#" class="block py-1 text-white hover:text-gray-300">Action 2</a>
-            <a href="#" class="block py-1 text-white hover:text-gray-300">Action 3</a>
+        <div id="mobile-notification-content" class="hidden bg-primary-900 px-4 py-2">
+            <?php if (isset($processed_notifications) && !empty($processed_notifications)): ?>
+                <?php foreach ($processed_notifications as $index => $notification): ?>
+                    <?php if ($index < 3): // Show only 3 notifications on mobile ?>
+                    <a href="<?php echo htmlspecialchars($notification['link'] ?? '#'); ?>" 
+                       class="block py-2 text-white border-b border-primary-800 hover:text-gray-300"
+                       onclick="markAsRead(<?php echo $notification['notification_id']; ?>, event)">
+                        <div class="flex items-center">
+                            <i class="fas <?php echo $notification['icon']; ?> mr-2" style="color: <?php echo $notification['color']; ?>"></i>
+                            <div>
+                                <div class="font-medium"><?php echo htmlspecialchars($notification['title']); ?></div>
+                                <div class="text-xs text-gray-300 truncate"><?php echo htmlspecialchars($notification['message']); ?></div>
+                            </div>
+                        </div>
+                    </a>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+                <a href="notifications.php" class="block py-2 text-center text-primary-300 text-sm mt-2 hover:text-white">
+                    View All Notifications
+                </a>
+            <?php else: ?>
+                <div class="py-2 text-gray-300 text-center">
+                    No notifications yet
+                </div>
+            <?php endif; ?>
         </div>
+        
         <a href="edit.php" class="block px-4 py-2 text-white hover:bg-primary-900">Edit Profile</a>
         <a href="leaderboard.php" class="block px-4 py-2 text-white hover:bg-primary-900">Leaderboard</a>
         <a href="history.php" class="block px-4 py-2 text-white hover:bg-primary-900">History</a>
