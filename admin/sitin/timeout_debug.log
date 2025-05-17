@@ -17,3 +17,98 @@
 [2025-05-17 10:04:57] Logging timeout action to system_logs
 [2025-05-17 10:04:57] Transaction committed successfully
 [2025-05-17 10:04:57] Redirecting to: current_sitin.php?timeout_success=1&t=1747447497
+[2025-05-17 10:12:48] Script started. POST data: []
+[2025-05-17 10:12:48] Request method: GET
+[2025-05-17 10:12:48] Headers: {"Host":"localhost","Connection":"keep-alive","sec-ch-ua":"\"Chromium\";v=\"136\", \"Brave\";v=\"136\", \"Not.A\/Brand\";v=\"99\"","sec-ch-ua-mobile":"?0","sec-ch-ua-platform":"\"Windows\"","Upgrade-Insecure-Requests":"1","User-Agent":"Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/136.0.0.0 Safari\/537.36","Accept":"text\/html,application\/xhtml+xml,application\/xml;q=0.9,image\/avif,image\/webp,image\/apng,*\/*;q=0.8","Sec-GPC":"1","Accept-Language":"en-US,en;q=0.7","Sec-Fetch-Site":"same-origin","Sec-Fetch-Mode":"navigate","Sec-Fetch-User":"?1","Sec-Fetch-Dest":"document","Referer":"http:\/\/localhost\/sitin\/admin\/sitin\/current_sitin.php","Accept-Encoding":"gzip, deflate, br, zstd","Cookie":"PHPSESSID=4s8ujub1epjsjle3shkrg68ig8"}
+[2025-05-17 10:12:48] Is direct submit: false
+[2025-05-17 10:12:48] Is manual fallback: false
+[2025-05-17 10:12:48] Is AJAX request: false
+[2025-05-17 10:12:48] Processing timeout from GET request for sitin_id: 95
+[2025-05-17 10:12:48] Processing timeout for sitin_id: 95
+[2025-05-17 10:12:48] Transaction started
+[2025-05-17 10:12:48] Executing query: SELECT student_id, computer_id FROM sit_in_sessions WHERE session_id = ? AND status = 'active' with id: 95
+[2025-05-17 10:12:48] Found active session for student_id: 22615058, computer_id: 151
+[2025-05-17 10:12:48] Executing update query: UPDATE sit_in_sessions SET status = 'inactive', check_out_time = ? WHERE session_id = ? AND status = 'active'
+[2025-05-17 10:12:48] Successfully updated sit-in session status to inactive
+[2025-05-17 10:12:48] Executing sessions update query for student_id: 22615058
+[2025-05-17 10:12:48] Updating computer status to available for computer_id: 151
+[2025-05-17 10:12:48] Actor ID for system log: 1
+[2025-05-17 10:12:48] Logging timeout action to system_logs
+[2025-05-17 10:12:48] Transaction committed successfully
+[2025-05-17 10:12:48] Redirecting to: current_sitin.php?timeout_success=1&t=1747447968
+[2025-05-17 10:12:53] Script started. POST data: []
+[2025-05-17 10:12:53] Request method: GET
+[2025-05-17 10:12:53] Headers: {"Host":"localhost","Connection":"keep-alive","sec-ch-ua":"\"Chromium\";v=\"136\", \"Brave\";v=\"136\", \"Not.A\/Brand\";v=\"99\"","sec-ch-ua-mobile":"?0","sec-ch-ua-platform":"\"Windows\"","Upgrade-Insecure-Requests":"1","User-Agent":"Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/136.0.0.0 Safari\/537.36","Accept":"text\/html,application\/xhtml+xml,application\/xml;q=0.9,image\/avif,image\/webp,image\/apng,*\/*;q=0.8","Sec-GPC":"1","Accept-Language":"en-US,en;q=0.7","Sec-Fetch-Site":"same-origin","Sec-Fetch-Mode":"navigate","Sec-Fetch-User":"?1","Sec-Fetch-Dest":"document","Referer":"http:\/\/localhost\/sitin\/admin\/sitin\/current_sitin.php?timeout_success=1&t=1747447968","Accept-Encoding":"gzip, deflate, br, zstd","Cookie":"PHPSESSID=4s8ujub1epjsjle3shkrg68ig8"}
+[2025-05-17 10:12:53] Is direct submit: false
+[2025-05-17 10:12:53] Is manual fallback: false
+[2025-05-17 10:12:53] Is AJAX request: false
+[2025-05-17 10:12:53] Processing timeout from GET request for sitin_id: 94
+[2025-05-17 10:12:53] Processing timeout for sitin_id: 94
+[2025-05-17 10:12:53] Transaction started
+[2025-05-17 10:12:53] Executing query: SELECT student_id, computer_id FROM sit_in_sessions WHERE session_id = ? AND status = 'active' with id: 94
+[2025-05-17 10:12:53] Found active session for student_id: 22615058, computer_id: null
+[2025-05-17 10:12:53] Executing update query: UPDATE sit_in_sessions SET status = 'inactive', check_out_time = ? WHERE session_id = ? AND status = 'active'
+[2025-05-17 10:12:53] Successfully updated sit-in session status to inactive
+[2025-05-17 10:12:53] Executing sessions update query for student_id: 22615058
+[2025-05-17 10:12:53] Actor ID for system log: 1
+[2025-05-17 10:12:53] Logging timeout action to system_logs
+[2025-05-17 10:12:53] Transaction committed successfully
+[2025-05-17 10:12:53] Redirecting to: current_sitin.php?timeout_success=1&t=1747447973
+[2025-05-17 10:13:41] Script started. POST data: []
+[2025-05-17 10:13:41] Request method: GET
+[2025-05-17 10:13:41] Headers: {"Host":"localhost","Connection":"keep-alive","sec-ch-ua":"\"Chromium\";v=\"136\", \"Brave\";v=\"136\", \"Not.A\/Brand\";v=\"99\"","sec-ch-ua-mobile":"?0","sec-ch-ua-platform":"\"Windows\"","Upgrade-Insecure-Requests":"1","User-Agent":"Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/136.0.0.0 Safari\/537.36","Accept":"text\/html,application\/xhtml+xml,application\/xml;q=0.9,image\/avif,image\/webp,image\/apng,*\/*;q=0.8","Sec-GPC":"1","Accept-Language":"en-US,en;q=0.7","Sec-Fetch-Site":"same-origin","Sec-Fetch-Mode":"navigate","Sec-Fetch-User":"?1","Sec-Fetch-Dest":"document","Referer":"http:\/\/localhost\/sitin\/admin\/sitin\/current_sitin.php?sitin_id=97","Accept-Encoding":"gzip, deflate, br, zstd","Cookie":"PHPSESSID=4s8ujub1epjsjle3shkrg68ig8"}
+[2025-05-17 10:13:41] Is direct submit: false
+[2025-05-17 10:13:41] Is manual fallback: false
+[2025-05-17 10:13:41] Is AJAX request: false
+[2025-05-17 10:13:41] Processing timeout from GET request for sitin_id: 96
+[2025-05-17 10:13:41] Processing timeout for sitin_id: 96
+[2025-05-17 10:13:41] Transaction started
+[2025-05-17 10:13:41] Executing query: SELECT student_id, computer_id FROM sit_in_sessions WHERE session_id = ? AND status = 'active' with id: 96
+[2025-05-17 10:13:41] Found active session for student_id: 22596886, computer_id: 48
+[2025-05-17 10:13:41] Executing update query: UPDATE sit_in_sessions SET status = 'inactive', check_out_time = ? WHERE session_id = ? AND status = 'active'
+[2025-05-17 10:13:41] Successfully updated sit-in session status to inactive
+[2025-05-17 10:13:41] Executing sessions update query for student_id: 22596886
+[2025-05-17 10:13:41] Updating computer status to available for computer_id: 48
+[2025-05-17 10:13:41] Actor ID for system log: 1
+[2025-05-17 10:13:41] Logging timeout action to system_logs
+[2025-05-17 10:13:41] Transaction committed successfully
+[2025-05-17 10:13:41] Redirecting to: current_sitin.php?timeout_success=1&t=1747448021
+[2025-05-17 10:13:45] Script started. POST data: []
+[2025-05-17 10:13:45] Request method: GET
+[2025-05-17 10:13:45] Headers: {"Host":"localhost","Connection":"keep-alive","sec-ch-ua":"\"Chromium\";v=\"136\", \"Brave\";v=\"136\", \"Not.A\/Brand\";v=\"99\"","sec-ch-ua-mobile":"?0","sec-ch-ua-platform":"\"Windows\"","Upgrade-Insecure-Requests":"1","User-Agent":"Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/136.0.0.0 Safari\/537.36","Accept":"text\/html,application\/xhtml+xml,application\/xml;q=0.9,image\/avif,image\/webp,image\/apng,*\/*;q=0.8","Sec-GPC":"1","Accept-Language":"en-US,en;q=0.7","Sec-Fetch-Site":"same-origin","Sec-Fetch-Mode":"navigate","Sec-Fetch-User":"?1","Sec-Fetch-Dest":"document","Referer":"http:\/\/localhost\/sitin\/admin\/sitin\/current_sitin.php?timeout_success=1&t=1747448021","Accept-Encoding":"gzip, deflate, br, zstd","Cookie":"PHPSESSID=4s8ujub1epjsjle3shkrg68ig8"}
+[2025-05-17 10:13:45] Is direct submit: false
+[2025-05-17 10:13:45] Is manual fallback: false
+[2025-05-17 10:13:45] Is AJAX request: false
+[2025-05-17 10:13:45] Processing timeout from GET request for sitin_id: 97
+[2025-05-17 10:13:45] Processing timeout for sitin_id: 97
+[2025-05-17 10:13:45] Transaction started
+[2025-05-17 10:13:45] Executing query: SELECT student_id, computer_id FROM sit_in_sessions WHERE session_id = ? AND status = 'active' with id: 97
+[2025-05-17 10:13:45] Found active session for student_id: 22615058, computer_id: 151
+[2025-05-17 10:13:45] Executing update query: UPDATE sit_in_sessions SET status = 'inactive', check_out_time = ? WHERE session_id = ? AND status = 'active'
+[2025-05-17 10:13:45] Successfully updated sit-in session status to inactive
+[2025-05-17 10:13:45] Executing sessions update query for student_id: 22615058
+[2025-05-17 10:13:45] Updating computer status to available for computer_id: 151
+[2025-05-17 10:13:45] Actor ID for system log: 1
+[2025-05-17 10:13:45] Logging timeout action to system_logs
+[2025-05-17 10:13:45] Transaction committed successfully
+[2025-05-17 10:13:45] Redirecting to: current_sitin.php?timeout_success=1&t=1747448025
+[2025-05-17 10:18:04] Script started. POST data: []
+[2025-05-17 10:18:04] Request method: GET
+[2025-05-17 10:18:04] Headers: {"Host":"localhost","Connection":"keep-alive","sec-ch-ua":"\"Chromium\";v=\"136\", \"Brave\";v=\"136\", \"Not.A\/Brand\";v=\"99\"","sec-ch-ua-mobile":"?0","sec-ch-ua-platform":"\"Windows\"","Upgrade-Insecure-Requests":"1","User-Agent":"Mozilla\/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit\/537.36 (KHTML, like Gecko) Chrome\/136.0.0.0 Safari\/537.36","Accept":"text\/html,application\/xhtml+xml,application\/xml;q=0.9,image\/avif,image\/webp,image\/apng,*\/*;q=0.8","Sec-GPC":"1","Accept-Language":"en-US,en;q=0.7","Sec-Fetch-Site":"same-origin","Sec-Fetch-Mode":"navigate","Sec-Fetch-User":"?1","Sec-Fetch-Dest":"document","Referer":"http:\/\/localhost\/sitin\/admin\/sitin\/current_sitin.php?sitin_id=98","Accept-Encoding":"gzip, deflate, br, zstd","Cookie":"PHPSESSID=brcdd34d2goj6tg66dsb7k6pn6"}
+[2025-05-17 10:18:04] Is direct submit: false
+[2025-05-17 10:18:04] Is manual fallback: false
+[2025-05-17 10:18:04] Is AJAX request: false
+[2025-05-17 10:18:04] Processing timeout from GET request for sitin_id: 98
+[2025-05-17 10:18:04] Processing timeout for sitin_id: 98
+[2025-05-17 10:18:04] Transaction started
+[2025-05-17 10:18:04] Executing query: SELECT student_id, computer_id FROM sit_in_sessions WHERE session_id = ? AND status = 'active' with id: 98
+[2025-05-17 10:18:04] Found active session for student_id: 22615058, computer_id: null
+[2025-05-17 10:18:04] Executing update query: UPDATE sit_in_sessions SET status = 'inactive', check_out_time = ? WHERE session_id = ? AND status = 'active'
+[2025-05-17 10:18:04] Successfully updated sit-in session status to inactive
+[2025-05-17 10:18:04] Executing sessions update query for student_id: 22615058
+[2025-05-17 10:18:04] Actor ID for system log: 1
+[2025-05-17 10:18:04] Logging timeout action to system_logs
+[2025-05-17 10:18:04] Sending timeout notification to user_id: 15
+[2025-05-17 10:18:04] Notification result: Success (10)
+[2025-05-17 10:18:04] Transaction committed successfully
+[2025-05-17 10:18:04] Redirecting to: current_sitin.php?timeout_success=1&t=1747448284

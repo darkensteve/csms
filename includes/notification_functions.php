@@ -489,4 +489,57 @@ function notify_sitin_started($session_id, $student_id, $student_name, $lab_name
         $link
     );
 }
+
+/**
+ * Helper function to create a notification when a sit-in session is timed out
+ * 
+ * @param int $session_id Session ID
+ * @param int $student_id Student ID
+ * @param int $admin_id Admin ID
+ * @param string $admin_username Admin username
+ * @return int|false The new notification ID or false on failure
+ */
+function notify_sitin_timeout($session_id, $student_id, $admin_id, $admin_username) {
+    $title = "Sit-In Session Ended";
+    $message = "Your sit-in session has been timed out by $admin_username. A session has been deducted from your account.";
+    $link = "history.php"; // Link to student's history page
+    
+    return create_notification(
+        $student_id,
+        'user',
+        $admin_id,
+        'admin',
+        'sit_in_timeout',
+        $title,
+        $message,
+        $link
+    );
+}
+
+/**
+ * Helper function to create a notification when points are deducted from a student
+ * 
+ * @param int $student_id Student ID
+ * @param int $points Points deducted
+ * @param string $reason Reason for deducting points
+ * @param int $admin_id Admin ID
+ * @param string $admin_username Admin username
+ * @return int|false The new notification ID or false on failure
+ */
+function notify_points_deducted($student_id, $points, $reason, $admin_id, $admin_username) {
+    $title = "Points Deducted";
+    $message = "$points points have been deducted from your account by $admin_username. Reason: $reason";
+    $link = "history.php"; // Link to student's history page
+    
+    return create_notification(
+        $student_id,
+        'user',
+        $admin_id,
+        'admin',
+        'points_deducted',
+        $title,
+        $message,
+        $link
+    );
+}
 ?> 

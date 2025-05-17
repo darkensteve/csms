@@ -123,7 +123,35 @@ try {
     }
     
     // 6. Create notification for the student
-    notify_points_added($student_id, $points_to_add, $reason, $admin_id, $admin_username);
+    // Get the user_id for notification
+    $get_user_query = "SELECT user_id, USER_ID FROM users WHERE {$id_column} = ? LIMIT 1";
+    $user_stmt = $conn->prepare($get_user_query);
+    if ($user_stmt) {
+        $user_stmt->bind_param("s", $student_id);
+        $user_stmt->execute();
+        $user_result = $user_stmt->get_result();
+        
+        if ($user_result->num_rows > 0) {
+            $user_data = $user_result->fetch_assoc();
+            $user_id_to_notify = $user_data['user_id'] ?? $user_data['USER_ID'] ?? null;
+            
+            if ($user_id_to_notify) {
+                $notify_result = notify_points_added(
+                    $user_id_to_notify,
+                    $points_to_add,
+                    $reason,
+                    $admin_id,
+                    $admin_username
+                );
+                
+                if (!$notify_result) {
+                    // Log notification failure but don't interrupt the flow
+                    error_log("Failed to send points notification to user ID: $user_id_to_notify");
+                }
+            }
+        }
+        $user_stmt->close();
+    }
     
     // Commit the transaction
     $conn->commit();

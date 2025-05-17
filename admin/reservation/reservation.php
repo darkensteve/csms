@@ -12,11 +12,35 @@ $admin_username = $_SESSION['admin_username'] ?? 'Admin';
 
 // Database connection
 require_once '../includes/db_connect.php';
-// Include notification functions
-require_once '../includes/notification_functions.php';
+// Include notification functions - try both possible paths
+if (file_exists('../includes/notification_functions.php')) {
+    require_once '../includes/notification_functions.php';
+} else if (file_exists('../../includes/notification_functions.php')) {
+    require_once '../../includes/notification_functions.php';
+} else {
+    // Log the issue and set up a fallback notification function
+    error_log("ERROR: Could not find notification_functions.php file");
+    if (!function_exists('notify_reservation_status')) {
+        function notify_reservation_status($student_id, $reservation_id, $status, $admin_id, $admin_username) {
+            error_log("Notification would be sent to student $student_id about reservation $reservation_id: $status");
+            return true;
+        }
+    }
+    if (!function_exists('notify_sitin_started')) {
+        function notify_sitin_started($session_id, $student_id, $student_name, $lab_name, $admin_id, $admin_username) {
+            error_log("Sit-in notification would be sent to student $student_id about session $session_id");
+            return true;
+        }
+    }
+}
 
 // Set timezone to Philippine time
 date_default_timezone_set('Asia/Manila');
+
+// Debug POST data
+if (!empty($_POST)) {
+    error_log("POST data received: " . print_r($_POST, true));
+}
 
 // Initialize messages array
 $messages = [];
@@ -53,116 +77,181 @@ if (isset($_POST['update_reservation'])) {
     $action = $_POST['action'];
     $new_status = ($action == 'approve') ? 'approved' : 'rejected';
     
+    // Debug information
+    error_log("Updating reservation #$reservation_id to status: $new_status");
+    $messages[] = [
+        'type' => 'info',
+        'text' => "Processing reservation #$reservation_id ($action)"
+    ];
+    
     // Get the reservation details
-    $get_reservation_query = "SELECT r.*, u.firstName, u.lastName, u.idNo FROM reservations r 
-                             JOIN users u ON r.user_id = u.user_id 
-                             WHERE r.reservation_id = ?";
+    $get_reservation_query = "SELECT r.*, 
+                         u.firstName, u.lastName, u.idNo, u.user_id,
+                         IFNULL(u.USER_ID, u.user_id) as user_id_safe 
+                      FROM reservations r 
+                      JOIN users u ON r.user_id = u.user_id OR r.user_id = u.USER_ID 
+                      WHERE r.reservation_id = ?";
     $stmt_get = $conn->prepare($get_reservation_query);
     
     if ($stmt_get) {
         $stmt_get->bind_param("i", $reservation_id);
         $stmt_get->execute();
         $result = $stmt_get->get_result();
-        $reservation = $result->fetch_assoc();
-        $stmt_get->close();
         
-        // Update the reservation status
-        $update_query = "UPDATE reservations SET status = ? WHERE reservation_id = ?";
-        $stmt = $conn->prepare($update_query);
-        if ($stmt) {
-            $stmt->bind_param("si", $new_status, $reservation_id);
-            if ($stmt->execute()) {
-                // If approved, create sit-in session and update computer status
-                if ($action == 'approve' && $reservation) {
-                    // Update computer status to 'used'
-                    $computer_status = 'used';
-                    $update_computer_query = "UPDATE computers SET status = ? WHERE computer_id = ?";
-                    $stmt_computer = $conn->prepare($update_computer_query);
-                    if ($stmt_computer) {
-                        $stmt_computer->bind_param("si", $computer_status, $reservation['computer_id']);
-                        $stmt_computer->execute();
-                        $stmt_computer->close();
-                    }
-                    
-                    // Create sit-in session
-                    $sitin_query = "INSERT INTO sit_in_sessions (
-                        student_id, student_name, lab_id, computer_id, purpose, 
-                        check_in_time, status, admin_id
-                    ) VALUES (?, ?, ?, ?, ?, NOW(), 'active', ?)";
-                    
-                    $stmt_sitin = $conn->prepare($sitin_query);
-                    if ($stmt_sitin) {
-                        $student_name = $reservation['firstName'] . ' ' . $reservation['lastName'];
-                        $stmt_sitin->bind_param(
-                            "ssiisi",
-                            $reservation['idNo'],
-                            $student_name,
-                            $reservation['lab_id'],
-                            $reservation['computer_id'],
-                            $reservation['purpose'],
-                            $_SESSION['admin_id']
-                        );
+        if ($result->num_rows == 0) {
+            error_log("Reservation #$reservation_id not found in database");
+            $messages[] = [
+                'type' => 'error',
+                'text' => "Reservation #$reservation_id not found in database"
+            ];
+        } else {
+            $reservation = $result->fetch_assoc();
+            $stmt_get->close();
+            
+            // Debug information
+            error_log("Found reservation: " . print_r($reservation, true));
+            
+            // Update the reservation status
+            $update_query = "UPDATE reservations SET status = ? WHERE reservation_id = ?";
+            $stmt = $conn->prepare($update_query);
+            if ($stmt) {
+                $stmt->bind_param("si", $new_status, $reservation_id);
+                if ($stmt->execute()) {
+                    // If approved, create sit-in session and update computer status
+                    if ($action == 'approve' && $reservation) {
+                        // Update computer status to 'used'
+                        $computer_status = 'used';
+                        $update_computer_query = "UPDATE computers SET status = ? WHERE computer_id = ?";
+                        $stmt_computer = $conn->prepare($update_computer_query);
+                        if ($stmt_computer) {
+                            $stmt_computer->bind_param("si", $computer_status, $reservation['computer_id']);
+                            $stmt_computer->execute();
+                            $stmt_computer->close();
+                            
+                            error_log("Updated computer #{$reservation['computer_id']} status to: $computer_status");
+                        }
                         
-                        if ($stmt_sitin->execute()) {
-                            // Send notification to student about approved reservation
-                            notify_reservation_status(
-                                $reservation['user_id'],
-                                $reservation_id,
-                                'approved',
-                                $_SESSION['admin_id'],
-                                $admin_username
-                            );
-                            
-                            // Also notify about sit-in session
-                            notify_sitin_started(
-                                $stmt_sitin->insert_id,
-                                $reservation['user_id'],
+                        // Create sit-in session
+                        $sitin_query = "INSERT INTO sit_in_sessions (
+                            student_id, student_name, lab_id, computer_id, purpose, 
+                            check_in_time, status, admin_id
+                        ) VALUES (?, ?, ?, ?, ?, NOW(), 'active', ?)";
+                        
+                        $stmt_sitin = $conn->prepare($sitin_query);
+                        if ($stmt_sitin) {
+                            $student_name = $reservation['firstName'] . ' ' . $reservation['lastName'];
+                            $stmt_sitin->bind_param(
+                                "ssiisi",
+                                $reservation['idNo'],
                                 $student_name,
-                                $labs[$reservation['lab_id']]['lab_name'] ?? "Laboratory #{$reservation['lab_id']}",
-                                $_SESSION['admin_id'],
-                                $admin_username
+                                $reservation['lab_id'],
+                                $reservation['computer_id'],
+                                $reservation['purpose'],
+                                $_SESSION['admin_id']
                             );
                             
+                            if ($stmt_sitin->execute()) {
+                                $sitin_id = $stmt_sitin->insert_id;
+                                error_log("Created sit-in session #$sitin_id for student {$student_name}");
+                                
+                                // Send notification to student about approved reservation
+                                $user_id_to_notify = $reservation['user_id_safe'] ?? $reservation['user_id'] ?? $reservation['USER_ID'] ?? null;
+                                error_log("User ID for notification: " . print_r($user_id_to_notify, true));
+                                $notify_result = notify_reservation_status(
+                                    $user_id_to_notify,
+                                    $reservation_id,
+                                    'approved',
+                                    $_SESSION['admin_id'],
+                                    $admin_username
+                                );
+                                
+                                error_log("Notification to student result: " . ($notify_result ? "success ($notify_result)" : "failed"));
+                                
+                                // Also notify about sit-in session
+                                $lab_name = $labs[$reservation['lab_id']]['lab_name'] ?? "Laboratory #{$reservation['lab_id']}";
+                                $notify_sitin_result = notify_sitin_started(
+                                    $sitin_id,
+                                    $user_id_to_notify,
+                                    $student_name,
+                                    $lab_name,
+                                    $_SESSION['admin_id'],
+                                    $admin_username
+                                );
+                                
+                                error_log("Sit-in notification result: " . ($notify_sitin_result ? "success ($notify_sitin_result)" : "failed"));
+                                
+                                $messages[] = [
+                                    'type' => 'success',
+                                    'text' => "Reservation #$reservation_id approved and sit-in session created for student {$student_name}"
+                                ];
+                            } else {
+                                error_log("Failed to create sit-in session: " . $stmt_sitin->error);
+                                $messages[] = [
+                                    'type' => 'error',
+                                    'text' => "Failed to create sit-in session: " . $stmt_sitin->error
+                                ];
+                            }
+                            $stmt_sitin->close();
+                        } else {
+                            error_log("Failed to prepare sit-in session statement: " . $conn->error);
                             $messages[] = [
-                                'type' => 'success',
-                                'text' => "Reservation approved and sit-in session created for student {$student_name}"
+                                'type' => 'error',
+                                'text' => "Failed to prepare sit-in session statement: " . $conn->error
                             ];
                         }
-                        $stmt_sitin->close();
+                    } else if ($action == 'reject' && $reservation['computer_id']) {
+                        // If rejected, set the computer back to 'available'
+                        $computer_status = 'available';
+                        $update_computer_query = "UPDATE computers SET status = ? WHERE computer_id = ?";
+                        $stmt_computer = $conn->prepare($update_computer_query);
+                        if ($stmt_computer) {
+                            $stmt_computer->bind_param("si", $computer_status, $reservation['computer_id']);
+                            $stmt_computer->execute();
+                            $stmt_computer->close();
+                            
+                            error_log("Updated computer #{$reservation['computer_id']} status to: available");
+                        }
+                        
+                        // Send notification to student about rejected reservation
+                        $user_id_to_notify = $reservation['user_id_safe'] ?? $reservation['user_id'] ?? $reservation['USER_ID'] ?? null;
+                        error_log("User ID for rejection notification: " . print_r($user_id_to_notify, true));
+                        $notify_result = notify_reservation_status(
+                            $user_id_to_notify,
+                            $reservation_id,
+                            'rejected',
+                            $_SESSION['admin_id'],
+                            $admin_username
+                        );
+                        
+                        error_log("Notification to student result: " . ($notify_result ? "success ($notify_result)" : "failed"));
+                        
+                        $messages[] = [
+                            'type' => 'success',
+                            'text' => "Reservation #$reservation_id has been rejected. Computer #{$reservation['computer_id']} has been set back to available."
+                        ];
                     }
-                } else if ($action == 'reject' && $reservation['computer_id']) {
-                    // If rejected, set the computer back to 'available'
-                    $computer_status = 'available';
-                    $update_computer_query = "UPDATE computers SET status = ? WHERE computer_id = ?";
-                    $stmt_computer = $conn->prepare($update_computer_query);
-                    if ($stmt_computer) {
-                        $stmt_computer->bind_param("si", $computer_status, $reservation['computer_id']);
-                        $stmt_computer->execute();
-                        $stmt_computer->close();
-                    }
-                    
-                    // Send notification to student about rejected reservation
-                    notify_reservation_status(
-                        $reservation['user_id'],
-                        $reservation_id,
-                        'rejected',
-                        $_SESSION['admin_id'],
-                        $admin_username
-                    );
-                    
+                } else {
+                    error_log("Failed to update reservation: " . $stmt->error);
                     $messages[] = [
-                        'type' => 'success',
-                        'text' => "Reservation #$reservation_id has been rejected. Computer #{$reservation['computer_id']} has been set back to available."
+                        'type' => 'error',
+                        'text' => "Failed to update reservation: " . $stmt->error
                     ];
                 }
+                $stmt->close();
             } else {
+                error_log("Failed to prepare update statement: " . $conn->error);
                 $messages[] = [
                     'type' => 'error',
-                    'text' => "Failed to update reservation: " . $stmt->error
+                    'text' => "Failed to prepare update statement: " . $conn->error
                 ];
             }
-            $stmt->close();
         }
+    } else {
+        error_log("Failed to prepare get_reservation statement: " . $conn->error);
+        $messages[] = [
+            'type' => 'error',
+            'text' => "Failed to prepare get_reservation statement: " . $conn->error
+        ];
     }
 }
 

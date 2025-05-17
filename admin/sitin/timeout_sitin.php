@@ -1,6 +1,8 @@
 <?php
 // Include database connection
 require_once '../includes/db_connect.php';
+// Include notification functions
+require_once '../../includes/notification_functions.php';
 session_start();
 
 // Create a log file for debugging
@@ -179,6 +181,42 @@ try {
             $log_stmt = $conn->prepare($log_query);
             $log_stmt->bind_param("sss", $actor_id, $log_details, $ip_address);
             $log_stmt->execute();
+            
+            // Send notification to the student about timeOut
+            $admin_username = isset($_SESSION['admin_username']) ? $_SESSION['admin_username'] : 'Admin';
+            
+            // If we have the student ID, get their user_id for notification
+            if ($student_id) {
+                // Get the user_id
+                $get_user_query = "SELECT user_id, USER_ID FROM users WHERE idNo = ? LIMIT 1";
+                $user_stmt = $conn->prepare($get_user_query);
+                if ($user_stmt) {
+                    $user_stmt->bind_param("s", $student_id);
+                    $user_stmt->execute();
+                    $user_result = $user_stmt->get_result();
+                    
+                    if ($user_result->num_rows > 0) {
+                        $user_data = $user_result->fetch_assoc();
+                        $user_id_to_notify = $user_data['user_id'] ?? $user_data['USER_ID'] ?? null;
+                        
+                        if ($user_id_to_notify) {
+                            debug_log("Sending timeout notification to user_id: $user_id_to_notify");
+                            $notify_result = notify_sitin_timeout(
+                                $sitin_id,
+                                $user_id_to_notify,
+                                $admin_id,
+                                $admin_username
+                            );
+                            debug_log("Notification result: " . ($notify_result ? "Success ($notify_result)" : "Failed"));
+                        } else {
+                            debug_log("Could not find valid user_id for notification");
+                        }
+                    } else {
+                        debug_log("User record not found for student_id: $student_id");
+                    }
+                    $user_stmt->close();
+                }
+            }
             
             $conn->commit();
             debug_log("Transaction committed successfully");
